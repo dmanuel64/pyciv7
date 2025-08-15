@@ -1,7 +1,7 @@
 from typing import Final, List, Literal, Optional, Union
 
 from rich import print
-from pydantic import BaseModel, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 RECOMMENDED_MAX_ID_LENGTH: Final[int] = 64
 
@@ -11,8 +11,10 @@ def to_camel(s: str) -> str:
 
 
 class Mod(BaseModel):
-    model_config = {"validate_assignment": True}
-    id: str
+    model_config = {
+        "validate_assignment": True,
+    }
+    id: str = Field(serialization_alias="id")
     """
     The `id` is an identifier used to distinguish mods. It must be unique to distinguish it from
     other mods.
@@ -56,6 +58,13 @@ class Mod(BaseModel):
 
 
 class Properties(BaseModel):
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+        "validate_assignment": True,
+    }
     name: Optional[str] = None
     """
     The name of the mod. If this element is left empty, the mod will not show up in the Add-Ons
@@ -128,9 +137,10 @@ class ChildMod(BaseModel):
     `Mod` element of a `Dependencies` or `References` element.
     """
 
-    model_config = {"title": "Mod"}
-
-    id: str
+    model_config = {
+        "title": "Mod",
+    }
+    id: str = Field(serialization_alias="id")
     """
     The id of the mod that this mod will reference. This should match the mod id in the `Mod` root
     element of that mod's `.modinfo` file
@@ -165,6 +175,12 @@ class AgeInUse(BaseModel):
     here as well.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     age: Age
 
 
@@ -178,6 +194,12 @@ class AgeWasUsed(BaseModel):
     Start will **NOT** trigger an `AgeWasUsed` condition set to `AGE_ANTIQUITY`.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     age: Age
 
 
@@ -187,6 +209,12 @@ class AgeEverInUse(BaseModel):
     the current Age, or a previously played Age.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     age: Age
 
 
@@ -195,11 +223,17 @@ class ConfigurationValueMatches(BaseModel):
     Checks if a game configuration parameter matches the provided values.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     group: str
     """
     The `ConfigurationGroup` of the desired parameter.
     """
-    configuration_id: str
+    configuration_id: str = Field(serialization_alias="id")
     """
     The `ConfigurationKey` of the desired parameter.
     """
@@ -215,11 +249,17 @@ class ConfigurationValueContains(BaseModel):
     field. The criterion is met if the parameter matches any of the provided values
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     group: str
     """
     The `ConfigurationGroup` of the desired parameter.
     """
-    configuration_id: str
+    configuration_id: str = Field(serialization_alias="id")
     """
     The `ConfigurationKey` of the desired parameter.
     """
@@ -235,6 +275,12 @@ class MapInUse(BaseModel):
     match the `File` column of the `Maps` table in the frontend database.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     path: str
 
 
@@ -245,6 +291,12 @@ class RuleSetInUse(BaseModel):
     `Rulesets` table in the frontend/shell database for valid rulesets.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     ruleset: Union[Literal["RULESET_STANDARD"], str]
 
 
@@ -253,6 +305,12 @@ class GameModeInUse(BaseModel):
     Checks whether the game mode matches the provided value.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     game_mode: Literal["WorldBuilder", "SinglePlayer", "HotSeat", "MultiPlayer"]
 
 
@@ -262,6 +320,12 @@ class LeaderPlayable(BaseModel):
     this leader as a player?)
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     leader: str
 
 
@@ -274,6 +338,12 @@ class CivilizationPlayable(BaseModel):
     Exploration Age game.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     civilization: str
 
 
@@ -288,6 +358,12 @@ class ModInUse(BaseModel):
     version 1.0)
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     value: str
     version: Optional[str] = None
 
@@ -310,7 +386,13 @@ Condition = Union[
 
 
 class Criteria(BaseModel):
-    id: str
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
+    id: str = Field(serialization_alias="id")
     """
     Each criteria must have an `id` property. The id must be unique on a per mod basis.
     """
@@ -329,6 +411,12 @@ class UpdateDatabase(BaseModel):
     items, depending on the scope of the `ActionGroup`.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -337,6 +425,12 @@ class UpdateText(BaseModel):
     Updates the Localization database with the provided `.xml` or `.sql` items.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -345,6 +439,12 @@ class UpdateIcons(BaseModel):
     Updates the `Icons` database with the provided `.xml` or `.sql` items.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -353,6 +453,12 @@ class UpdateColors(BaseModel):
     Updates the `Colors` database with the provided .xml or .sql items.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -361,6 +467,12 @@ class UpdateArt(BaseModel):
     Updates art files. This action type won't be useful for modders until art tools are released.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -371,6 +483,12 @@ class ImportFiles(BaseModel):
     the same name and path (relative to the `.modinfo` file).
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -379,6 +497,12 @@ class UIScripts(BaseModel):
     Loads the provided `.js` files as new UI scripts.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -389,6 +513,12 @@ class UIShortcuts(BaseModel):
     `EnableDebugPanels` can be set to `1` in `AppOptions.txt` to access the panel.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -398,6 +528,12 @@ class UpdateVisualRemaps(BaseModel):
     can be used to relink the visuals of gameplay entries onto other assets.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -406,6 +542,12 @@ class MapGenScripts(BaseModel):
     Adds a new `.js` gameplay script that is loaded during map generation, then unloaded after.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -414,6 +556,12 @@ class ScenarioScripts(BaseModel):
     Adds a new `.js` gameplay script.
     """
 
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     items: List[str]
 
 
@@ -440,15 +588,21 @@ class ActionGroup(BaseModel):
     file to be loaded by the action
     """
 
-    id: str
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
+    id: str = Field(serialization_alias="id")
     """
     The id of the `ActionGroup`. This must be unique on a per mod basis.
     """
-    scope: Literal["game", "shell"]
+    scope: Literal["game", "shell"] = Field(serialization_alias="scope")
     """
     Whether the `ActionGroup` targets the frontend or gameplay scope.
     """
-    criteria: str
+    criteria: str = Field(serialization_alias="criteria")
     """
     The criteria that must be met for this `ActionGroup` to trigger. Set the value to the id of a
     `Criteria` defined in `ActionCriteria`
@@ -463,8 +617,12 @@ class ModInfo(BaseModel):
     (such as the name, author, and so on)
     """
 
-    model_config = {"alias_generator": to_camel}
-
+    model_config = {
+        "alias_generator": to_camel,
+        "serialize_by_alias": True,
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
     mod: Mod
     """
     The root element in a `.modinfo`

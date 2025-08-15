@@ -7,4 +7,4 @@ def hello() -> str:
 
 
 if __name__ == "__main__":
-    print(ModInfo(mod=Mod(id="my-mod", version="1.0.0")))
+    print(ModInfo(mod=Mod(id="my-mod", version="1.0.0")).model_dump())
