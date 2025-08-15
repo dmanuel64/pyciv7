@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import sqlite3
 import sys
+from typing import Type
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -61,14 +62,14 @@ def main() -> None:
             tables, description=f"Inspecting {sqlite_file.name}...", transient=True
         ):
             try:
-                model: BaseModel = getattr(pyciv7.databases, table)
+                model: Type[BaseModel] = getattr(pyciv7.databases, table)
             except AttributeError:
                 print(
                     f'[yellow]Table not implemented for {sqlite_file.name}: "{table}"'
                 )
             else:
                 # Get binding fields
-                fields = set(model.model_dump().keys())
+                fields = set(model.model_fields)
                 # Get all columns for the table
                 safe = quote_ident_path(table)
                 cursor.execute(f"PRAGMA table_info({safe});")
