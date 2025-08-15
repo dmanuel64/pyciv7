@@ -1,8 +1,7 @@
-from abc import ABC
-from typing import Final, List, Literal, Optional, TypeVar, Union
+from typing import Final, List, Literal, Optional, Union
 
 from rich import print
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import BaseModel, field_serializer, field_validator
 
 RECOMMENDED_MAX_ID_LENGTH: Final[int] = 64
 
@@ -321,16 +320,150 @@ class Criteria(BaseModel):
     criteria to activate. But if `any`=`True` is added, it will instead be met if any of the
     conditions are met.
     """
-    conditions: List[Condition] = Field(min_length=1)
+    conditions: List[Condition] = []
+
+
+class UpdateDatabase(BaseModel):
+    """
+    Updates either the frontend/shell or gameplay database with the provided `.xml` or `.sql`
+    items, depending on the scope of the `ActionGroup`.
+    """
+
+    items: List[str]
+
+
+class UpdateText(BaseModel):
+    """
+    Updates the Localization database with the provided `.xml` or `.sql` items.
+    """
+
+    items: List[str]
+
+
+class UpdateIcons(BaseModel):
+    """
+    Updates the `Icons` database with the provided `.xml` or `.sql` items.
+    """
+
+    items: List[str]
+
+
+class UpdateColors(BaseModel):
+    """
+    Updates the `Colors` database with the provided .xml or .sql items.
+    """
+
+    items: List[str]
+
+
+class UpdateArt(BaseModel):
+    """
+    Updates art files. This action type won't be useful for modders until art tools are released.
+    """
+
+    items: List[str]
+
+
+class ImportFiles(BaseModel):
+    """
+    Imports files into the game's file system. This can be used to import custom 2D assets such
+    as `.png` files. It can also be used to replace files, provided the file being imported has
+    the same name and path (relative to the `.modinfo` file).
+    """
+
+    items: List[str]
+
+
+class UIScripts(BaseModel):
+    """
+    Loads the provided `.js` files as new UI scripts.
+    """
+
+    items: List[str]
+
+
+class UIShortcuts(BaseModel):
+    """
+    Loads the provided `.html` files into the game's debug menu for loading.
+    `pyciv7.runner.run(..., debug=True)` must be set to access the panel. Alternatively,
+    `EnableDebugPanels` can be set to `1` in `AppOptions.txt` to access the panel.
+    """
+
+    items: List[str]
+
+
+class UpdateVisualRemaps(BaseModel):
+    """
+    Updates the Visual Remap database with the provided `.xml` or `.sql` items. The Visual Remaps
+    can be used to relink the visuals of gameplay entries onto other assets.
+    """
+
+    items: List[str]
+
+
+class MapGenScripts(BaseModel):
+    """
+    Adds a new `.js` gameplay script that is loaded during map generation, then unloaded after.
+    """
+
+    items: List[str]
+
+
+class ScenarioScripts(BaseModel):
+    """
+    Adds a new `.js` gameplay script.
+    """
+
+    items: List[str]
+
+
+Action = Union[
+    UpdateDatabase,
+    UpdateText,
+    UpdateIcons,
+    UpdateColors,
+    UpdateArt,
+    ImportFiles,
+    UIScripts,
+    UIShortcuts,
+    UpdateVisualRemaps,
+    MapGenScripts,
+    ScenarioScripts,
+]
+
+
+class ActionGroup(BaseModel):
+    """
+    An `ActionGroup` consists of `Action` child elements, which in turn consists of an array of
+    different child elements representing different types of actions. Those child elements should
+    have further `Item` file elements that contain a path (relative to the `.modinfo` file) to the
+    file to be loaded by the action
+    """
+
+    id: str
+    """
+    The id of the `ActionGroup`. This must be unique on a per mod basis.
+    """
+    scope: Literal["game", "shell"]
+    """
+    Whether the `ActionGroup` targets the frontend or gameplay scope.
+    """
+    criteria: str
+    """
+    The criteria that must be met for this `ActionGroup` to trigger. Set the value to the id of a
+    `Criteria` defined in `ActionCriteria`
+    """
+    actions: List[Action]
 
 
 class ModInfo(BaseModel):
-    model_config = {"alias_generator": to_camel}
     """
     A `.modinfo` tells the game what files to load and what to do with them. It tells the game
     how a mod relates to other mods and to DLC. It stores all the basic info about the mod
     (such as the name, author, and so on)
     """
+
+    model_config = {"alias_generator": to_camel}
 
     mod: Mod
     """
@@ -355,7 +488,9 @@ class ModInfo(BaseModel):
     - `age-exploration`
     - `age-modern`
     """
-    references: List[ChildMod] = []
+    references: List[ChildMod] = (
+        []
+    )  # TODO: make these into their own base models for consistency
     """
     The References element consists of a list of `ModChild` elements. Additionally, those
     mods will be loaded before this mod.
@@ -366,3 +501,4 @@ class ModInfo(BaseModel):
 
     `Criteria` are a set of conditions that need to be met for a mod to execute an `ActionGroup`.
     """
+    action_groups: List[ActionGroup] = []
