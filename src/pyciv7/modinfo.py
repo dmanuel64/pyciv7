@@ -57,8 +57,6 @@ class Mod(BaseModel):
 
 
 class Properties(BaseModel):
-    model_config = {"alias_generator": to_camel}
-
     name: Optional[str] = None
     """
     The name of the mod. If this element is left empty, the mod will not show up in the Add-Ons
@@ -193,7 +191,123 @@ class AgeEverInUse(BaseModel):
     age: Age
 
 
-Condition = Union[AlwaysMet, NeverMet, AgeInUse, AgeWasUsed, AgeEverInUse]
+class ConfigurationValueMatches(BaseModel):
+    """
+    Checks if a game configuration parameter matches the provided values.
+    """
+
+    group: str
+    """
+    The `ConfigurationGroup` of the desired parameter.
+    """
+    configuration_id: str
+    """
+    The `ConfigurationKey` of the desired parameter.
+    """
+    value: str
+    """
+    The value you want to check for.
+    """
+
+
+class ConfigurationValueContains(BaseModel):
+    """
+    Almost identical to `ConfigurationValueMatches`, but it instead takes a list for the `Value`
+    field. The criterion is met if the parameter matches any of the provided values
+    """
+
+    group: str
+    """
+    The `ConfigurationGroup` of the desired parameter.
+    """
+    configuration_id: str
+    """
+    The `ConfigurationKey` of the desired parameter.
+    """
+    value: List[str]
+    """
+    Any of the values you want to check for.
+    """
+
+
+class MapInUse(BaseModel):
+    """
+    Checks whether the current map type matches the provided value. The value provided should
+    match the `File` column of the `Maps` table in the frontend database.
+    """
+
+    path: str
+
+
+class RuleSetInUse(BaseModel):
+    """
+    Checks if the given ruleset is in use. By default the only ruleset available is
+    `RULESET_STANDARD`, but more may be added by mods or DLC. You can reference the
+    `Rulesets` table in the frontend/shell database for valid rulesets.
+    """
+
+    ruleset: Union[Literal["RULESET_STANDARD"], str]
+
+
+class GameModeInUse(BaseModel):
+    """
+    Checks whether the game mode matches the provided value.
+    """
+
+    game_mode: Literal["WorldBuilder", "SinglePlayer", "HotSeat", "MultiPlayer"]
+
+
+class LeaderPlayable(BaseModel):
+    """
+    Checks whether provided leader is a valid configuration option (can you set up a game with
+    this leader as a player?)
+    """
+
+    leader: str
+
+
+class CivilizationPlayable(BaseModel):
+    """
+    Checks whether provided civilization is a valid configuration option (can you set up a game
+    with this civilization as a player?).
+
+    This is affected by Game Age, `CIVILIZATION_HAN` would not be a valid option in an
+    Exploration Age game.
+    """
+
+    civilization: str
+
+
+class ModInUse(BaseModel):
+    """
+    This criterion is met when a mod with an id matching the provided value is active. The
+    meaning of 'mod' here is broad. This can be user created mods, or official Firaxis DLC
+    such as `shawnee-tecumseh`.
+
+    It can optionally also take a `Version` property. In which case it will check to see if the
+    mod version **MATCHES EXACTLY** before being met. It must be exact (Version 1 will not match
+    version 1.0)
+    """
+
+    value: str
+    version: Optional[str] = None
+
+
+Condition = Union[
+    AlwaysMet,
+    NeverMet,
+    AgeInUse,
+    AgeWasUsed,
+    AgeEverInUse,
+    ConfigurationValueMatches,
+    ConfigurationValueContains,
+    MapInUse,
+    RuleSetInUse,
+    GameModeInUse,
+    LeaderPlayable,
+    CivilizationPlayable,
+    ModInUse,
+]
 
 
 class Criteria(BaseModel):
@@ -211,6 +325,7 @@ class Criteria(BaseModel):
 
 
 class ModInfo(BaseModel):
+    model_config = {"alias_generator": to_camel}
     """
     A `.modinfo` tells the game what files to load and what to do with them. It tells the game
     how a mod relates to other mods and to DLC. It stores all the basic info about the mod
@@ -234,7 +349,6 @@ class ModInfo(BaseModel):
 
     A mod can have as many or as few dependencies as it needs. Additionally, all mods have the
     following modules as dependencies by default:
-src/pyciv7/modinfo.py
     - `core`
     - `base-standard`
     - `age-antiquity`
