@@ -65,9 +65,19 @@ def steam_settings_dir() -> Path:
     return steam_root / "steamapps/common/Sid Meier's Civilization VII"
 
 
+def steam_release_bin() -> Path:
+    binaries_dir = steam_settings_dir() / "Base" / "Binaries"
+    system = platform.system()
+    if system == "Windows":
+        return binaries_dir / "Win64" / "Civ7_Win64_DX12_FinalRelease.exe"
+    else:
+        return binaries_dir / system / "Civ7_Win64_Vulkan_FinalRelease"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=Path(__file__).parent.parent.parent / ".env", env_file_encoding="utf-8"
     )
     civ7_installation_dir: Path = Field(default=steam_settings_dir())
     civ7_settings_dir: Path = Field(default=default_installation_dir())
+    civ7_release_bin: Path = Field(default=steam_release_bin())

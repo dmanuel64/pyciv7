@@ -1,118 +1,73 @@
+"""
+Module containing Pydantic XML models for building a `.modinfo` XML file.
+"""
+
+from pathlib import Path
 from typing import Final, List, Literal, Optional, Union
 
+from pydantic import Field, constr, field_serializer, field_validator
+from pydantic_xml import BaseXmlModel, attr, element, wrapped
 from rich import print
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from sqlalchemy.sql.elements import CompilerElement
 
 RECOMMENDED_MAX_ID_LENGTH: Final[int] = 64
 
 
-def to_camel(s: str) -> str:
-    return "".join(part.capitalize() for part in s.split("_"))
-
-
-class Mod(BaseModel):
+class Properties(BaseXmlModel, tag="Properties", skip_empty=True):
     model_config = {
         "validate_assignment": True,
+        "validate_default": True,
     }
-    id: str = Field(serialization_alias="id")
-    """
-    The `id` is an identifier used to distinguish mods. It must be unique to distinguish it from
-    other mods.
-
-    It's recommended that the id be composed solely of ASCII characters and be less than 64
-    characters. It's also recommended to use solely lower case letters, and to use dashes
-    instead of underscores or spaces.
-
-    It's also good practice to adopt a developer prefix (an informal identifier for yourself, 
-    something like `fxs`, `suk`, `lime`) for all your mods. So instead of giving your mod the
-    id `my-cool-mod`, you'd give it the id `fxs-my-cool-mod` to ensure your mod id is completely
-    unique.
-    """
-    version: str
-    """
-    The version number for the mod.
-    """
-    xmlns: Literal["ModInfo"] = "ModInfo"
-    """
-    The XML namespace. This should always be set to `ModInfo`.
-    """
-
-    @field_validator("id")
-    def check_id_recommendations(cls, value: str) -> str:
-        if len(value) >= RECOMMENDED_MAX_ID_LENGTH:
-            print(
-                "[yellow]It is recommended that the .modinfo ID is less than "
-                f"{RECOMMENDED_MAX_ID_LENGTH} characters"
-            )
-        if not value.isascii():
-            print(
-                "[yellow]It is recommended that the .modinfo ID is composed solely of ASCII "
-                "characters"
-            )
-        if not value.islower() or "_" in value or value.split():
-            print(
-                "[yellow]It is recommended that the .modinfo ID is composed solely of lowercase "
-                "characters, and dashes instead of underscores or spaces"
-            )
-        return value
-
-
-class Properties(BaseModel):
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-        "validate_assignment": True,
-    }
-    name: Optional[str] = None
+    name: Optional[str] = element(default=None, tag="Name")
     """
     The name of the mod. If this element is left empty, the mod will not show up in the Add-Ons
     screen, though the game can still load it.
     """
-    description: Optional[str] = None
+    description: Optional[str] = element(default=None, tag="Description")
     """
     A brief description of what the mod does. It will be displayed in the Add-Ons screen.
     """
-    authors: Optional[str] = None
+    authors: Optional[str] = element(default=None, tag="Authors")
     """
     The name of the author(s).
     """
-    affects_saved_games: Optional[bool] = None
+    affects_saved_games: Optional[bool] = element(default=None, tag="AffectsSavedGames")
     """
     Determines whether the mod affects existing saved games. Mods that affect the Gameplay
     database should have this set to `False`. `True` is usually for mods that *ONLY* affect
     the game's UI and/or Localization database.
     """
-    package: Optional[str] = None
+    package: Optional[str] = element(default=None, tag="Package")
     """
     This field is not currently used by the game's UI. It would allow for mods with the same
     package value to be grouped together.
     """
-    package_sort_index: Optional[int] = None
+    package_sort_index: Optional[int] = element(default=None, tag="PackageSortIndex")
     """
     This field is not currently used by the game's UI. It would determines the order in which mods
     are shown in the browser.
     """
-    show_in_browser: Optional[bool] = None
+    show_in_browser: Optional[bool] = element(default=None, tag="ShowInBrowser")
     """
     Determines whether the mod should be shown on the Add-Ons screen. If this element is excluded,
     it defaults to `False`.
     """
-    enabled_by_default: Optional[bool] = None
+    enabled_by_default: Optional[bool] = element(default=None, tag="EnabledByDefault")
     """
     Determines if the mod is enabled by default if it has not been enabled/disabled in the game
     previously. If this element is excluded, it defaults to `False`.
     """
 
     @field_validator("name")
-    def check_minimum_name_recommendation(cls, value: str) -> str:
+    def check_minimum_name_recommendation(cls, value: Optional[str]) -> Optional[str]:
         if not value:
             print("[yellow]It is recommended the .modinfo Properties includes a name.")
         return value
 
     @field_validator("description")
-    def check_minimum_description_recommendation(cls, value: str) -> str:
+    def check_minimum_description_recommendation(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
         if not value:
             print(
                 "[yellow]It is recommended the .modinfo Properties includes a description."
@@ -120,7 +75,9 @@ class Properties(BaseModel):
         return value
 
     @field_validator("authors")
-    def check_minimum_authors_recommendation(cls, value: str) -> str:
+    def check_minimum_authors_recommendation(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
         if not value:
             print(
                 "[yellow]It is recommended the .modinfo Properties includes an author(s)."
@@ -128,11 +85,12 @@ class Properties(BaseModel):
         return value
 
     @field_serializer("affects_saved_games", "show_in_browser", "enabled_by_default")
-    def serialize_bool_to_success(self, value: bool) -> int:
-        return int(not value)
+    def serialize_bool_to_int(self, value: Optional[bool]) -> Optional[int]:
+        if value is not None:
+            return int(value)
 
 
-class ChildMod(BaseModel):
+class ChildMod(BaseXmlModel, tag="Mod"):
     """
     `Mod` element of a `Dependencies` or `References` element.
     """
@@ -140,26 +98,26 @@ class ChildMod(BaseModel):
     model_config = {
         "title": "Mod",
     }
-    id: str = Field(serialization_alias="id")
+    id: str = attr()
     """
     The id of the mod that this mod will reference. This should match the mod id in the `Mod` root
     element of that mod's `.modinfo` file
     """
-    title: str
+    title: str = attr()
     """
     The name of the mod that this mod will reference on. This should match the `Name` in the
     `Properties` element of that mod's `.modinfo` file
     """
 
 
-class AlwaysMet(BaseModel):
+class AlwaysMet(BaseXmlModel, tag="AlwaysMet"):
     """
     As the name states, this criterion is always met. `ActionGroups` that you always want active,
     should be assigned a `Criteria` with this criterion.
     """
 
 
-class NeverMet(BaseModel):
+class NeverMet(BaseXmlModel, tag="NeverMet"):
     """
     As the name states, this criterion is never met.
     """
@@ -168,23 +126,17 @@ class NeverMet(BaseModel):
 Age = Union[Literal["AGE_ANTIQUITY", "AGE_EXPLORATION", "AGE_MODERN"], str]
 
 
-class AgeInUse(BaseModel):
+class AgeInUse(BaseXmlModel, tag="AgeInUse"):
     """
     This criterion is met when the game age matches the provided age. This should be one of
     `AGE_ANTIQUITY`, `AGE_EXPLORATION`, `AGE_MODERN`. Mods may add new Ages that can be used
     here as well.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     age: Age
 
 
-class AgeWasUsed(BaseModel):
+class AgeWasUsed(BaseXmlModel, tag="AgeWasUsed"):
     """
     This criterion checks whether the provided age was previously played. It does not account for
     the current age. So if the provided value is `AGE_EXPLORATION` and you are currently playing in
@@ -194,142 +146,98 @@ class AgeWasUsed(BaseModel):
     Start will **NOT** trigger an `AgeWasUsed` condition set to `AGE_ANTIQUITY`.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     age: Age
 
 
-class AgeEverInUse(BaseModel):
+class AgeEverInUse(BaseXmlModel, tag="AgeEverInUse"):
     """
     A combination of `AgeInUse` and `AgeWasUsed`. Checks whether the provided Age matches either
     the current Age, or a previously played Age.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     age: Age
 
 
-class ConfigurationValueMatches(BaseModel):
+class ConfigurationValueMatches(BaseXmlModel, tag="ConfigurationValueMatches"):
     """
     Checks if a game configuration parameter matches the provided values.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    group: str
+    group: str = element(tag="Group")
     """
     The `ConfigurationGroup` of the desired parameter.
     """
-    configuration_id: str = Field(serialization_alias="id")
+    configuration_id: str = element(tag="ConfigurationID")
     """
     The `ConfigurationKey` of the desired parameter.
     """
-    value: str
+    value: str = element(tag="Value")
     """
     The value you want to check for.
     """
 
 
-class ConfigurationValueContains(BaseModel):
+class ConfigurationValueContains(BaseXmlModel, tag="ConfigurationValueContains"):
     """
     Almost identical to `ConfigurationValueMatches`, but it instead takes a list for the `Value`
     field. The criterion is met if the parameter matches any of the provided values
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    group: str
+    group: str = element(tag="Group")
     """
     The `ConfigurationGroup` of the desired parameter.
     """
-    configuration_id: str = Field(serialization_alias="id")
+    configuration_id: str = element(tag="ConfigurationID")
     """
     The `ConfigurationKey` of the desired parameter.
     """
-    value: List[str]
+    value: List[str] = element(tag="Value", tokens=True)
     """
     Any of the values you want to check for.
     """
 
+    @field_serializer("value")
+    def to_comma_delimited(self, value: List[str]) -> List[str]:
+        return [",".join(value)]
 
-class MapInUse(BaseModel):
+
+class MapInUse(BaseXmlModel, tag="MapInUse"):
     """
     Checks whether the current map type matches the provided value. The value provided should
     match the `File` column of the `Maps` table in the frontend database.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     path: str
 
 
-class RuleSetInUse(BaseModel):
+class RuleSetInUse(BaseXmlModel, tag="RuleSetInUse"):
     """
     Checks if the given ruleset is in use. By default the only ruleset available is
     `RULESET_STANDARD`, but more may be added by mods or DLC. You can reference the
     `Rulesets` table in the frontend/shell database for valid rulesets.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     ruleset: Union[Literal["RULESET_STANDARD"], str]
 
 
-class GameModeInUse(BaseModel):
+class GameModeInUse(BaseXmlModel, tag="GameModeInUse"):
     """
     Checks whether the game mode matches the provided value.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     game_mode: Literal["WorldBuilder", "SinglePlayer", "HotSeat", "MultiPlayer"]
 
 
-class LeaderPlayable(BaseModel):
+class LeaderPlayable(BaseXmlModel, tag="LeaderPlayable"):
     """
     Checks whether provided leader is a valid configuration option (can you set up a game with
     this leader as a player?)
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     leader: str
 
 
-class CivilizationPlayable(BaseModel):
+class CivilizationPlayable(BaseXmlModel, tag="CivilizationPlayable"):
     """
     Checks whether provided civilization is a valid configuration option (can you set up a game
     with this civilization as a player?).
@@ -338,16 +246,10 @@ class CivilizationPlayable(BaseModel):
     Exploration Age game.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
     civilization: str
 
 
-class ModInUse(BaseModel):
+class ModInUse(BaseXmlModel, tag="ModInUse", skip_empty=True):
     """
     This criterion is met when a mod with an id matching the provided value is active. The
     meaning of 'mod' here is broad. This can be user created mods, or official Firaxis DLC
@@ -358,14 +260,8 @@ class ModInUse(BaseModel):
     version 1.0)
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    value: str
-    version: Optional[str] = None
+    value: str = element(tag="Value")
+    version: Optional[str] = element(tag="Version", default=None)
 
 
 Condition = Union[
@@ -385,184 +281,165 @@ Condition = Union[
 ]
 
 
-class Criteria(BaseModel):
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    id: str = Field(serialization_alias="id")
+class Criteria(BaseXmlModel, tag="Criteria"):
+    id: str = attr()
     """
     Each criteria must have an `id` property. The id must be unique on a per mod basis.
     """
-    any: Optional[Literal[True]] = None
+    any: Optional[Literal[True]] = attr(default=None)
     """
     By default, all conditions in a `Criteria` element must be met for an `Action` with that
     criteria to activate. But if `any`=`True` is added, it will instead be met if any of the
     conditions are met.
     """
-    conditions: List[Condition] = []
+    conditions: List[Condition]
 
 
-class UpdateDatabase(BaseModel):
+StrPath = Union[str, Path]
+
+
+class Item(BaseXmlModel, tag="Item"):
+    path: StrPath
+
+
+SQLStatement = CompilerElement
+SQLStatementOrPath = Union[StrPath, SQLStatement]
+
+
+class DatabaseItem(BaseXmlModel, tag="Item"):
+    model_config = {"arbitrary_types_allowed": True, "validate_assignment": True}
+    path: SQLStatementOrPath
+
+    @field_validator("path")
+    def validate_path(cls, value: SQLStatementOrPath) -> SQLStatementOrPath:
+        if isinstance(value, str):
+            return cls.validate_path(Path(value))
+        elif isinstance(value, Path):
+            if value.suffix.lower() not in [".xml", ".sql"]:
+                raise ValueError(
+                    "DatabaseItem must be a path to an XML/SQL file, or a Python SQLModel ORM "
+                    "expression"
+                )
+        return value
+
+
+# TODO: make specific shell hooks (e.g. main-menu.js, root-shell.js, etc.)
+# TODO: make a hook model where you can specify more settings (e.g. expose for non-module code with window.mod = ns, logging, etc.)
+Hook = Union[Literal["shell"], StrPath]
+
+
+class ScriptItem(BaseXmlModel, tag="Item"):
+    model_config = {"validate_assignment": True}
+    path: StrPath
+    hook: Optional[Hook] = Field(default=None, exclude=True)
+
+    @field_validator("path")
+    def validate_path(cls, value: StrPath) -> Path:
+        if isinstance(value, str):
+            return cls.validate_path(Path(value))
+        else:
+            if value.suffix.lower() not in [".js", ".py"]:
+                raise ValueError(
+                    "ScriptItem must be a path to an Python/JavaScript file"
+                )
+            return value
+
+
+class UpdateDatabase(BaseXmlModel, tag="UpdateDatabase"):
     """
-    Updates either the frontend/shell or gameplay database with the provided `.xml` or `.sql`
-    items, depending on the scope of the `ActionGroup`.
+    Updates either the frontend/shell or gameplay database with the provided `.xml`,
+    SQLModel ORM statement, or `.sql` items, depending on the scope of the `ActionGroup`.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[DatabaseItem]
 
 
-class UpdateText(BaseModel):
+class UpdateText(BaseXmlModel, tag="UpdateText"):
     """
-    Updates the Localization database with the provided `.xml` or `.sql` items.
+    Updates the Localization database with the provided `.xml`, SQLModel ORM statement, or, `.sql`
+    items.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[DatabaseItem]
 
 
-class UpdateIcons(BaseModel):
+class UpdateIcons(BaseXmlModel, tag="UpdateIcons"):
     """
-    Updates the `Icons` database with the provided `.xml` or `.sql` items.
+    Updates the `Icons` database with the provided `.xml`, SQLModel ORM statement, or `.sql` items.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[DatabaseItem]
 
 
-class UpdateColors(BaseModel):
+class UpdateColors(BaseXmlModel, tag="UpdateColors"):
     """
-    Updates the `Colors` database with the provided .xml or .sql items.
+    Updates the `Colors` database with the provided `.xml`, SQLModel ORM statement, or `.sql`
+    items.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[DatabaseItem]
 
 
-class UpdateArt(BaseModel):
+class UpdateArt(BaseXmlModel, tag="UpdateArt"):
     """
     Updates art files. This action type won't be useful for modders until art tools are released.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[Item]
 
 
-class ImportFiles(BaseModel):
+class ImportFiles(BaseXmlModel, tag="ImportFiles"):
     """
     Imports files into the game's file system. This can be used to import custom 2D assets such
     as `.png` files. It can also be used to replace files, provided the file being imported has
     the same name and path (relative to the `.modinfo` file).
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[Item]
 
 
-class UIScripts(BaseModel):
+class UIScripts(BaseXmlModel, tag="UIScripts"):
     """
-    Loads the provided `.js` files as new UI scripts.
+    Loads the provided `.js` or `.py` files as new UI scripts.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[ScriptItem]
 
 
-class UIShortcuts(BaseModel):
+class UIShortcuts(BaseXmlModel, tag="UIShortcuts"):
     """
     Loads the provided `.html` files into the game's debug menu for loading.
     `pyciv7.runner.run(..., debug=True)` must be set to access the panel. Alternatively,
     `EnableDebugPanels` can be set to `1` in `AppOptions.txt` to access the panel.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[Item]
 
 
-class UpdateVisualRemaps(BaseModel):
+class UpdateVisualRemaps(BaseXmlModel, tag="UpdateVisualRemaps"):
     """
-    Updates the Visual Remap database with the provided `.xml` or `.sql` items. The Visual Remaps
-    can be used to relink the visuals of gameplay entries onto other assets.
+    Updates the Visual Remap database with the provided `.xml`, SQLModel ORM statement, or `.sql`
+    items. The Visual Remaps can be used to relink the visuals of gameplay entries onto other
+    assets.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[DatabaseItem]
 
 
-class MapGenScripts(BaseModel):
+class MapGenScripts(BaseXmlModel, tag="MapGenScripts"):
     """
-    Adds a new `.js` gameplay script that is loaded during map generation, then unloaded after.
+    Adds a new `.js` or `.py` gameplay script that is loaded during map generation, then unloaded after.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[ScriptItem]
 
 
-class ScenarioScripts(BaseModel):
+class ScenarioScripts(BaseXmlModel, tag="ScenarioScripts"):
     """
-    Adds a new `.js` gameplay script.
+    Adds a new `.js` or `.py` gameplay script.
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    items: List[str]
+    items: List[ScriptItem]
 
 
 Action = Union[
@@ -580,7 +457,7 @@ Action = Union[
 ]
 
 
-class ActionGroup(BaseModel):
+class ActionGroup(BaseXmlModel, tag="ActionGroup"):
     """
     An `ActionGroup` consists of `Action` child elements, which in turn consists of an array of
     different child elements representing different types of actions. Those child elements should
@@ -588,52 +465,65 @@ class ActionGroup(BaseModel):
     file to be loaded by the action
     """
 
-    model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
-    }
-    id: str = Field(serialization_alias="id")
+    id: str = attr()
     """
     The id of the `ActionGroup`. This must be unique on a per mod basis.
     """
-    scope: Literal["game", "shell"] = Field(serialization_alias="scope")
+    scope: Literal["game", "shell"] = attr()
     """
     Whether the `ActionGroup` targets the frontend or gameplay scope.
     """
-    criteria: str = Field(serialization_alias="criteria")
+    criteria: str = attr()
     """
     The criteria that must be met for this `ActionGroup` to trigger. Set the value to the id of a
     `Criteria` defined in `ActionCriteria`
     """
-    actions: List[Action]
-
-
-class ModInfo(BaseModel):
+    actions: List[Action] = wrapped("Actions")
     """
-    A `.modinfo` tells the game what files to load and what to do with them. It tells the game
-    how a mod relates to other mods and to DLC. It stores all the basic info about the mod
-    (such as the name, author, and so on)
+    The set of actions that will be executed when the criteria is met.
+    """
+
+
+class Mod(BaseXmlModel, tag="Mod", skip_empty=True):
+    """
+    Root element for a `.modinfo` file. A `.modinfo` tells the game what files to load and what
+    to do with them. It tells the game how a mod relates to other mods and to DLC. It stores all
+    the basic info about the mod (such as the name, author, and so on.)
     """
 
     model_config = {
-        "alias_generator": to_camel,
-        "serialize_by_alias": True,
-        "validate_by_name": True,
-        "validate_by_alias": True,
+        "validate_assignment": True,
+        "validate_default": True,
     }
-    mod: Mod
+    id: str = attr()
     """
-    The root element in a `.modinfo`
+    The `id` is an identifier used to distinguish mods. It must be unique to distinguish it from
+    other mods.
+
+    It's recommended that the id be composed solely of ASCII characters and be less than 64
+    characters. It's also recommended to use solely lower case letters, and to use dashes
+    instead of underscores or spaces.
+
+    It's also good practice to adopt a developer prefix (an informal identifier for yourself, 
+    something like `fxs`, `suk`, `lime`) for all your mods. So instead of giving your mod the
+    id `my-cool-mod`, you'd give it the id `fxs-my-cool-mod` to ensure your mod id is completely
+    unique.
     """
-    properties: Properties = Properties()
+    version: str = attr()
+    """
+    The version number for the mod.
+    """
+    xmlns: Literal["ModInfo"] = attr(default="ModInfo")
+    """
+    The XML namespace. This should always be set to `ModInfo`.
+    """
+    properties: Optional[Properties] = element(default=None)
     """
     The Properties element contains much of the additional information about the mod. It
     consists of the following child elements. All these elements are technically optional,
     but at minimum, you should include `Name`, `Description`, and `Author`.
     """
-    dependencies: List[ChildMod] = []
+    dependencies: Optional[List[ChildMod]] = wrapped("Dependencies", default=None)
     """
     The `Dependencies` element consists of a list of `ModChild` elements. Additionally, those
     mods will be loaded before this mod.
@@ -646,17 +536,43 @@ class ModInfo(BaseModel):
     - `age-exploration`
     - `age-modern`
     """
-    references: List[ChildMod] = (
-        []
-    )  # TODO: make these into their own base models for consistency
+    references: Optional[List[ChildMod]] = wrapped("References", default=None)
     """
     The References element consists of a list of `ModChild` elements. Additionally, those
     mods will be loaded before this mod.
     """
-    action_criteria: List[Criteria] = []
+    action_criteria: Optional[List[Criteria]] = wrapped("ActionCriteria", default=None)
     """
     The `ActionCriteria` element consists of `Criteria` child elements.
 
     `Criteria` are a set of conditions that need to be met for a mod to execute an `ActionGroup`.
     """
-    action_groups: List[ActionGroup] = []
+    action_groups: Optional[List[ActionGroup]] = wrapped("ActionGroups", default=None)
+    """
+    The `ActionGroups` element consists of `ActionGroup` child elements.
+    """
+
+    @field_validator("id")
+    def check_id_recommendations(cls, value: str) -> str:
+        if len(value) >= RECOMMENDED_MAX_ID_LENGTH:
+            print(
+                "[yellow]It is recommended that the .modinfo ID is less than "
+                f"{RECOMMENDED_MAX_ID_LENGTH} characters"
+            )
+        if not value.isascii():
+            print(
+                "[yellow]It is recommended that the .modinfo ID is composed solely of ASCII "
+                "characters"
+            )
+        if not value.islower() or "_" in value or len(value.split(maxsplit=1)) > 1:
+            print(
+                "[yellow]It is recommended that the .modinfo ID is composed solely of lowercase "
+                "characters, and dashes instead of underscores or spaces"
+            )
+        return value
+
+    @field_validator("properties")
+    def check_properties_recommendations(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            print('[yellow]It is recommended you define a "Properties" element')
+        return value
