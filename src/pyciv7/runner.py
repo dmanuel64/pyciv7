@@ -93,6 +93,10 @@ def build(
                 if isinstance(action, DatabaseItemsAction):
                     # Save SQL statements to SQL statements directory
                     action.save_sql_statements(sql_statement_dir)
+                    # Convert all items to relative paths to the mod directory
+                    action.items = [
+                        Path(item).relative_to(mod_path) for item in action.items  # type: ignore
+                    ]
         # Create .modinfo file
         (mod_path / ".modinfo").write_text(mod.to_xml(encoding="unicode"))  # type: ignore
 
