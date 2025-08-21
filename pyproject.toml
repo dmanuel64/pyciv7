@@ -3,9 +3,7 @@ name = "pyciv7"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Dylan Manuel", email = "dylan.manuel@att.net" }
-]
+authors = [{ name = "Dylan Manuel" }]
 requires-python = ">3.8,<3.14"
 dependencies = [
     "pydantic-settings>=2.0.3",

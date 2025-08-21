@@ -20,26 +20,6 @@ def test_missing_properties_print_recommendations(capsys):
     assert "includes an author(s)" not in out
 
 
-def test_database_item_only_accepts_xml_sql(tmp_path):
-    (tmp_path / "a.xml").write_text("<x/>")
-    (tmp_path / "b.sql").write_text("-- sql")
-    (tmp_path / "c.txt").write_text("invalid")
-    DatabaseItem(path=str(tmp_path / "a.xml"))
-    DatabaseItem(path=tmp_path / "b.sql")
-    with pytest.raises(ValueError):
-        DatabaseItem(path=tmp_path / "c.txt")
-
-
-def test_script_item_only_accepts_py_js(tmp_path):
-    (tmp_path / "u.py").write_text("# py")
-    (tmp_path / "u.js").write_text("// js")
-    (tmp_path / "u.ts").write_text("// ts")
-    ScriptItem(path=tmp_path / "u.py")
-    ScriptItem(path=tmp_path / "u.js")
-    with pytest.raises(ValueError):
-        ScriptItem(path=tmp_path / "u.ts")
-
-
 def test_print_mod_recommendations(capsys):
     bad_id = "Ä" + "a" * (RECOMMENDED_MAX_ID_LENGTH) + "_ WITHSPACE"
     Mod(id=bad_id, version="1.0")
@@ -71,7 +51,7 @@ def test_configuration_value_contains_serializes_list_to_commas():
     assert "<Value>a,b,c</Value>" in xml
 
 
-def test_modinfo_to_xml_matches():
+def test_sample_modinfo_to_xml_matches():
     def to_xml_lines(xml_str: str) -> List[str]:
         return [
             line.strip().replace("\\", "/")
@@ -125,11 +105,7 @@ def test_modinfo_to_xml_matches():
                 id="antiquity-game",
                 scope="game",
                 criteria="antiquity-age-current",
-                actions=[
-                    UpdateDatabase(
-                        items=[DatabaseItem(path="data/antiquity-traditions.xml")]
-                    )
-                ],
+                actions=[UpdateDatabase(items=["data/antiquity-traditions.xml"])],
             )
         ],
     )

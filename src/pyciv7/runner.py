@@ -2,17 +2,17 @@
 Module pertaining to building Civilization 7 mods and running them in debug mode.
 """
 
+import shutil
+import subprocess
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from pathlib import Path
-import subprocess
-from typing import Any, Generator
-import uuid
+from typing import Any, Generator, Optional
 
 from rich import print
 from rich.status import Status
 
-from pyciv7.modinfo import DatabaseItem, Mod, SQLStatement, ScriptItem
+from pyciv7.modinfo import DatabaseItemsAction, Mod
 from pyciv7.settings import Settings
 
 
@@ -45,10 +45,18 @@ def debug_settings_enabled() -> Generator[None, None, None]:
     app_options.write_text(old_options)
 
 
+def get_transcrypt_hook_code(rel_path: Path) -> str:
+    template = (Path(__file__).parent / "resources" / "transcrypt_hook.js").read_text()
+    return template.replace("<REL_PATH>", str(rel_path.as_posix())).replace(
+        "<MOD>", rel_path.name
+    )
+
+
 def build(
     mod: Mod,
-    path: Path = Settings().civ7_settings_dir / "Mods",
-    exists_ok: bool = False,
+    path: Optional[Path] = None,
+    overwrite: bool = False,
+    settings: Settings = Settings(),
 ):
     """
     Builds a new Civilization 7 mod from Python bindings. The root directory of the mod will be
@@ -57,74 +65,35 @@ def build(
     Parameters:
         mod: The `Mod` to build.
         path: Directory of where the mod should be stored under. Normally, this is the `Mods` subdirectory under the Civilization 7 settings directory (default.)
-        exists_ok: `True` if it is okay to overwrite the directory even if it already exists. This is needed for rebuilds.
+        overwrite: `True` if it is okay to overwrite the directory even if it already exists. This is needed for rebuilds.
+        settings: Common `Settings` for pyciv7.
     """
+    mod_path = path or settings.civ7_settings_dir / "Mods" / mod.id
+    if overwrite:
+        shutil.rmtree(mod_path, ignore_errors=True)
     with Status(f'Building .modinfo for "{mod.id}"...'):
         mod = deepcopy(mod)
-        # Get mod directory
-        path /= mod.id
+        # Create mod directory
         try:
-            path.mkdir(parents=True, exist_ok=exists_ok)
+            mod_path.mkdir(parents=True)
         except FileExistsError as e:
             raise FileExistsError(
-                f'Mod "{mod.id}" already exists. Use "exists_ok=True" to rebuild it.'
+                f'Mod "{mod.id}" already exists. Use "overwrite=True" to overwrite/rebuild it.'
             ) from e
         # Create directory for transcrypt
-        transcript_dir = path / "transcrypt"
+        transcript_dir = mod_path / "transcrypt"
         transcript_dir.mkdir(exist_ok=True)
-        # Handle Python scripts and ORM expressions
+        # Create a directory for SQL statements
+        sql_statement_dir = mod_path / "sql_statements"
+        sql_statement_dir.mkdir(exist_ok=True)
         action_groups = mod.action_groups or []
         for action_group in action_groups:
             for action in action_group.actions:
-                for item in action.items:
-                    if isinstance(item, ScriptItem):
-                        script_path = Path(item.path)
-                        if script_path.suffix.lower() == ".py":
-                            # Transcribe Python to JavaScript
-                            try:
-                                subprocess.run(
-                                    [
-                                        "transcrypt",
-                                        "--build",
-                                        "--outdir",
-                                        transcript_dir,
-                                        script_path,
-                                    ],
-                                    check=True,
-                                )
-                            except subprocess.CalledProcessError as e:
-                                raise ValueError(
-                                    f'Failed to transcribe "{script_path.name}" to JavaScript'
-                                ) from e
-                            item.path = transcript_dir / script_path.with_suffix(".js")
-                            if item.hook:
-                                if item.hook == "shell":
-                                    item.hook = (
-                                        path
-                                        / "modules"
-                                        / "ui"
-                                        / "shell"
-                                        / "main-menu"
-                                        / "main-menu.js"
-                                    )
-                                    item.hook.parent.mkdir(parents=True, exist_ok=True)
-                                # Hook script to existing script
-                                item.hook = Path(item.hook)
-                                relative_path = item.hook.relative_to(path)
-                                script_content = Path(
-                                    Settings().civ7_installation_dir / relative_path
-                                ).read_text()
-                    elif isinstance(item, DatabaseItem):
-                        if isinstance(item, SQLStatement):
-                            # Convert ORM to SQL
-                            statement = str(
-                                item.compile(compile_kwargs={"literal_binds": True})
-                            )
-                            sql_file = (
-                                path / str(uuid.uuid4()).replace("-", "")
-                            ).with_suffix(".sql")
-                            sql_file.write_text(statement)
-                            item.path = sql_file
+                if isinstance(action, DatabaseItemsAction):
+                    # Save SQL statements to SQL statements directory
+                    action.save_sql_statements(sql_statement_dir)
+        # Create .modinfo file
+        (mod_path / ".modinfo").write_text(mod.to_xml(encoding="unicode"))  # type: ignore
 
 
 def run(mod: Mod, debug: bool = True, **build_kwargs: Any):

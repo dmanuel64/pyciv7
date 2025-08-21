@@ -27,11 +27,7 @@ Example:
                 id="antiquity-game",
                 scope="game",
                 criteria="antiquity-age-current",
-                actions=[
-                    UpdateDatabase(
-                        items=[DatabaseItem(path="data/antiquity-traditions.xml")]
-                    )
-                ],
+                actions=[UpdateDatabase(items=["data/antiquity-traditions.xml"])],
             )
         ],
     )
@@ -73,25 +69,8 @@ Example:
     ```
 """
 
-import xml.dom.minidom as md
-
 from pyciv7.modinfo import *
 from pyciv7.runner import build, run
 import pyciv7.databases
 
 __all__ = ["build", "run"]
-
-
-def hello() -> str:
-    return "Hello from pyciv7!"
-
-
-if __name__ == "__main__":
-    mod = Mod(
-        id="my-mod",
-        version="1.0.0",
-    )
-    xml_bytes = mod.to_xml()
-    dom = md.parseString(xml_bytes)
-    pretty_xml = dom.toprettyxml()
-    print(pretty_xml)

@@ -1,38 +1,54 @@
 import pytest
-
+from sqlalchemy import text
 from pyciv7 import runner
 from pyciv7.modinfo import (
     ActionGroup,
-    AlwaysMet,
+    AgeInUse,
     Criteria,
-    DatabaseItem,
     Mod,
     Properties,
-    ScriptItem,
     UpdateDatabase,
-    MapGenScripts,
 )
 
 
-def test_build_python_scripts(tmp_path):
-    py_script = tmp_path / "test.py"
-    py_script.write_text('print("Hello, world")')
-    mod = Mod(
-        id="python-integrated-mod",
+@pytest.fixture
+def modinfo_sample() -> Mod:
+    return Mod(
+        id="fxs-new-policies",
         version="1",
+        properties=Properties(
+            name="Antiquity Policies",
+            description="Adds new policies to the Antiquity Age",
+            authors="Firaxis",
+            affects_saved_games=True,
+        ),
         action_criteria=[
             Criteria(
-                id="always",
-                conditions=[AlwaysMet()],
+                id="antiquity-age-current",
+                conditions=[AgeInUse(age="AGE_ANTIQUITY")],
             )
         ],
         action_groups=[
             ActionGroup(
-                id="hello-world",
+                id="antiquity-game",
                 scope="game",
-                criteria="always",
-                actions=[MapGenScripts(items=[ScriptItem(path=py_script)])],
+                criteria="antiquity-age-current",
+                actions=[UpdateDatabase(items=["data/antiquity-traditions.xml"])],
             )
         ],
     )
-    runner.build(mod, tmp_path)
+
+
+def test_build_modinfo_sample(settings, tmp_path, modinfo_sample):
+    path = tmp_path / "fxs-new-policies"
+    runner.build(modinfo_sample, path=path, settings=settings)
+    assert (path / ".modinfo").read_text()
+
+
+def test_build_modinfo_sample_with_sql_expression(settings, tmp_path, modinfo_sample):
+    path = tmp_path / "fxs-new-policies"
+    query = text("SELECT * FROM Policies")
+    modinfo_sample.action_groups[0].actions[0].items = [query]
+    runner.build(modinfo_sample, path=path, settings=settings)
+    assert (path / ".modinfo").read_text()
+    assert len(list((path / "sql_statements").glob("*"))) == 1

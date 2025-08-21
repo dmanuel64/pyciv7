@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import platform
-from typing import Literal, Optional
+from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -9,11 +9,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 def default_installation_dir() -> Path:
     system = platform.system()
     if system == "Windows":
-        return Path(
-            os.path.expandvars(
-                r"%localappdata%\Firaxis Games\Sid Meier's Civilization VII"
+        try:
+            base = Path(
+                os.getenv("LOCALAPPDATA")
+                or os.getenv("APPDATA")
+                or os.path.join(os.environ["USERPROFILE"], "AppData", "Local")
             )
-        )
+        except KeyError:
+            pass
+        else:
+            return base / "Firaxis Games" / "Sid Meier's Civilization VII"
     elif system == "Darwin":
         return Path.home() / "Library/Application Support/Civilization VII/"
     elif system == "Linux":

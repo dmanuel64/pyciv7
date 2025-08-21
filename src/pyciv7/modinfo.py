@@ -2,10 +2,16 @@
 Module containing Pydantic XML models for building a `.modinfo` XML file.
 """
 
+from io import TextIOWrapper
 from pathlib import Path
-from typing import Final, List, Literal, Optional, Union
+import shutil
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from types import TracebackType
+from typing import Final, List, Literal, Optional, Type, Union
+from uuid import uuid4
 
-from pydantic import Field, constr, field_serializer, field_validator
+from pydantic import Field, ValidationError, field_serializer, field_validator
+from pydantic_core import PydanticCustomError
 from pydantic_xml import BaseXmlModel, attr, element, wrapped
 from rich import print
 from sqlalchemy.sql.elements import CompilerElement
@@ -296,150 +302,151 @@ class Criteria(BaseXmlModel, tag="Criteria"):
 
 
 StrPath = Union[str, Path]
+"""
+`str` or a `pathlib.Path` instance.
+"""
 
 
 class Item(BaseXmlModel, tag="Item"):
     path: StrPath
+
+    @field_serializer("path")
+    def to_posix(self, value: StrPath) -> str:
+        return Path(value).as_posix()
 
 
 SQLStatement = CompilerElement
 SQLStatementOrPath = Union[StrPath, SQLStatement]
 
 
-class DatabaseItem(BaseXmlModel, tag="Item"):
-    model_config = {"arbitrary_types_allowed": True, "validate_assignment": True}
-    path: SQLStatementOrPath
+def validate_item_ext(path: StrPath, *exts: str) -> Path:
+    if isinstance(path, str):
+        return validate_item_ext(Path(path), *exts)
+    else:
+        if path.suffix.lower() not in [ext.lower() for ext in exts]:
+            raise PydanticCustomError(
+                "invalid_extension",
+                "Item must have one of: {allowed}",
+                {"allowed": ", ".join(exts)},
+            )
+        return path
 
-    @field_validator("path")
-    def validate_path(cls, value: SQLStatementOrPath) -> SQLStatementOrPath:
-        if isinstance(value, str):
-            return cls.validate_path(Path(value))
-        elif isinstance(value, Path):
-            if value.suffix.lower() not in [".xml", ".sql"]:
-                raise ValueError(
-                    "DatabaseItem must be a path to an XML/SQL file, or a Python SQLModel ORM "
-                    "expression"
+
+class ItemsAction(BaseXmlModel):
+    items: List[StrPath] = wrapped("Item")
+
+    @field_serializer("items")
+    def to_posix(self, items: List[StrPath]) -> List[str]:
+        return [Path(item).as_posix() for item in items]
+
+
+class DatabaseItemsAction(ItemsAction):
+    model_config = {"arbitrary_types_allowed": True}
+    items: List[Union[StrPath, SQLStatement]] = wrapped("Item")
+
+    @field_serializer("items")
+    def to_posix(self, items: List[Union[StrPath, SQLStatement]]) -> List[str]:
+        if any(isinstance(item, SQLStatement) for item in items):
+            raise PydanticCustomError(
+                "cannot_serialize_sql_statements",
+                "This instance can only be serialized after calling save_sql_statements()",
+            )
+        return super().to_posix(items)  # type: ignore
+
+    def save_sql_statements(self, path: StrPath) -> None:
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        for idx, item in enumerate(self.items[::]):
+            if isinstance(item, SQLStatement):
+                # Compile SQL statement and write to SQL file
+                sql_file = (path / str(uuid4())).with_suffix(".sql")
+                sql_file.write_text(
+                    str(item.compile(compile_kwargs={"literal_binds": True}))
                 )
-        return value
+                # Modify items to use the new SQL file instead
+                self.items[idx] = sql_file
 
 
-# TODO: make specific shell hooks (e.g. main-menu.js, root-shell.js, etc.)
-# TODO: make a hook model where you can specify more settings (e.g. expose for non-module code with window.mod = ns, logging, etc.)
-Hook = Union[Literal["shell"], StrPath]
+class JavaScriptItemsAction(ItemsAction):
+
+    @field_validator("items")
+    def validate_items(cls, items: List[StrPath]) -> List[StrPath]:
+        return [validate_item_ext(item, ".js") for item in items]
 
 
-class ScriptItem(BaseXmlModel, tag="Item"):
-    model_config = {"validate_assignment": True}
-    path: StrPath
-    hook: Optional[Hook] = Field(default=None, exclude=True)
-
-    @field_validator("path")
-    def validate_path(cls, value: StrPath) -> Path:
-        if isinstance(value, str):
-            return cls.validate_path(Path(value))
-        else:
-            if value.suffix.lower() not in [".js", ".py"]:
-                raise ValueError(
-                    "ScriptItem must be a path to an Python/JavaScript file"
-                )
-            return value
-
-
-class UpdateDatabase(BaseXmlModel, tag="UpdateDatabase"):
+class UpdateDatabase(DatabaseItemsAction, tag="UpdateDatabase"):
     """
     Updates either the frontend/shell or gameplay database with the provided `.xml`,
     SQLModel ORM statement, or `.sql` items, depending on the scope of the `ActionGroup`.
     """
 
-    items: List[DatabaseItem]
 
-
-class UpdateText(BaseXmlModel, tag="UpdateText"):
+class UpdateText(DatabaseItemsAction, tag="UpdateText"):
     """
     Updates the Localization database with the provided `.xml`, SQLModel ORM statement, or, `.sql`
     items.
     """
 
-    items: List[DatabaseItem]
 
-
-class UpdateIcons(BaseXmlModel, tag="UpdateIcons"):
+class UpdateIcons(DatabaseItemsAction, tag="UpdateIcons"):
     """
     Updates the `Icons` database with the provided `.xml`, SQLModel ORM statement, or `.sql` items.
     """
 
-    items: List[DatabaseItem]
 
-
-class UpdateColors(BaseXmlModel, tag="UpdateColors"):
+class UpdateColors(DatabaseItemsAction, tag="UpdateColors"):
     """
     Updates the `Colors` database with the provided `.xml`, SQLModel ORM statement, or `.sql`
     items.
     """
 
-    items: List[DatabaseItem]
 
-
-class UpdateArt(BaseXmlModel, tag="UpdateArt"):
+class UpdateArt(ItemsAction, tag="UpdateArt"):
     """
     Updates art files. This action type won't be useful for modders until art tools are released.
     """
 
-    items: List[Item]
 
-
-class ImportFiles(BaseXmlModel, tag="ImportFiles"):
+class ImportFiles(ItemsAction, tag="ImportFiles"):
     """
     Imports files into the game's file system. This can be used to import custom 2D assets such
     as `.png` files. It can also be used to replace files, provided the file being imported has
     the same name and path (relative to the `.modinfo` file).
     """
 
-    items: List[Item]
 
-
-class UIScripts(BaseXmlModel, tag="UIScripts"):
+class UIScripts(JavaScriptItemsAction, tag="UIScripts"):
     """
-    Loads the provided `.js` or `.py` files as new UI scripts.
+    Loads the provided `.js` files as new UI scripts.
     """
 
-    items: List[ScriptItem]
 
-
-class UIShortcuts(BaseXmlModel, tag="UIShortcuts"):
+class UIShortcuts(ItemsAction, tag="UIShortcuts"):
     """
     Loads the provided `.html` files into the game's debug menu for loading.
     `pyciv7.runner.run(..., debug=True)` must be set to access the panel. Alternatively,
     `EnableDebugPanels` can be set to `1` in `AppOptions.txt` to access the panel.
     """
 
-    items: List[Item]
 
-
-class UpdateVisualRemaps(BaseXmlModel, tag="UpdateVisualRemaps"):
+class UpdateVisualRemaps(DatabaseItemsAction, tag="UpdateVisualRemaps"):
     """
     Updates the Visual Remap database with the provided `.xml`, SQLModel ORM statement, or `.sql`
     items. The Visual Remaps can be used to relink the visuals of gameplay entries onto other
     assets.
     """
 
-    items: List[DatabaseItem]
 
-
-class MapGenScripts(BaseXmlModel, tag="MapGenScripts"):
+class MapGenScripts(JavaScriptItemsAction, tag="MapGenScripts"):
     """
-    Adds a new `.js` or `.py` gameplay script that is loaded during map generation, then unloaded after.
+    Adds a new `.js` gameplay script that is loaded during map generation, then unloaded after.
     """
 
-    items: List[ScriptItem]
 
-
-class ScenarioScripts(BaseXmlModel, tag="ScenarioScripts"):
+class ScenarioScripts(JavaScriptItemsAction, tag="ScenarioScripts"):
     """
-    Adds a new `.js` or `.py` gameplay script.
+    Adds a new `.js` gameplay script.
     """
-
-    items: List[ScriptItem]
 
 
 Action = Union[
