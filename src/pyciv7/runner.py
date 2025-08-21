@@ -70,13 +70,11 @@ def build(
     """
     settings = settings_factory()
     mod_path = path or settings.civ7_settings_dir / "Mods" / mod.id
-    if overwrite:
-        shutil.rmtree(mod_path, ignore_errors=True)
     with Status(f'Building .modinfo for "{mod.id}"...'):
         mod = deepcopy(mod)
         # Create mod directory
         try:
-            mod_path.mkdir(parents=True)
+            mod_path.mkdir(parents=True, exist_ok=overwrite)
         except FileExistsError as e:
             raise FileExistsError(
                 f'Mod "{mod.id}" already exists. Use "overwrite=True" to overwrite/rebuild it.'
@@ -95,7 +93,7 @@ def build(
                     action.save_sql_statements(sql_statement_dir)
                     # Convert all items to relative paths to the mod directory
                     action.items = [
-                        Path(item).relative_to(mod_path) for item in action.items  # type: ignore
+                        Path(item).relative_to(mod_path) for item in action.items if Path(item).is_absolute()  # type: ignore
                     ]
         # Create .modinfo file
         (mod_path / ".modinfo").write_text(mod.to_xml(encoding="unicode"))  # type: ignore
