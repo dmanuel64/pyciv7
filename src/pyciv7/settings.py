@@ -83,6 +83,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=Path(__file__).parent.parent.parent / ".env", env_file_encoding="utf-8"
     )
-    civ7_installation_dir: Path = Field(default=steam_settings_dir())
-    civ7_settings_dir: Path = Field(default=default_installation_dir())
-    civ7_release_bin: Path = Field(default=steam_release_bin())
+    civ7_installation_dir: Path = Field(default_factory=lambda: steam_settings_dir())
+    civ7_settings_dir: Path = Field(default_factory=lambda: default_installation_dir())
+    civ7_release_bin: Path = Field(default_factory=lambda: steam_release_bin())
