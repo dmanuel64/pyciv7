@@ -7,7 +7,7 @@ import subprocess
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Any, Callable, Generator, Optional
 
 from rich import print
 from rich.status import Status
@@ -56,7 +56,7 @@ def build(
     mod: Mod,
     path: Optional[Path] = None,
     overwrite: bool = False,
-    settings: Settings = Settings(),
+    settings_factory: Callable[[], Settings] = lambda: Settings(),
 ):
     """
     Builds a new Civilization 7 mod from Python bindings. The root directory of the mod will be
@@ -68,6 +68,7 @@ def build(
         overwrite: `True` if it is okay to overwrite the directory even if it already exists. This is needed for rebuilds.
         settings: Common `Settings` for pyciv7.
     """
+    settings = settings_factory()
     mod_path = path or settings.civ7_settings_dir / "Mods" / mod.id
     if overwrite:
         shutil.rmtree(mod_path, ignore_errors=True)

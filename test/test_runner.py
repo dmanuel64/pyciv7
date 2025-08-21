@@ -39,16 +39,16 @@ def modinfo_sample() -> Mod:
     )
 
 
-def test_build_modinfo_sample(settings, tmp_path, modinfo_sample):
+def test_build_modinfo_sample(tmp_path, modinfo_sample):
     path = tmp_path / "fxs-new-policies"
-    runner.build(modinfo_sample, path=path, settings=settings)
+    runner.build(modinfo_sample, path=path)
     assert (path / ".modinfo").read_text()
 
 
-def test_build_modinfo_sample_with_sql_expression(settings, tmp_path, modinfo_sample):
+def test_build_modinfo_sample_with_sql_expression(tmp_path, modinfo_sample):
     path = tmp_path / "fxs-new-policies"
     query = text("SELECT * FROM Policies")
     modinfo_sample.action_groups[0].actions[0].items = [query]
-    runner.build(modinfo_sample, path=path, settings=settings)
+    runner.build(modinfo_sample, path=path)
     assert (path / ".modinfo").read_text()
     assert len(list((path / "sql_statements").glob("*"))) == 1
