@@ -45,13 +45,6 @@ def debug_settings_enabled() -> Generator[None, None, None]:
     app_options.write_text(old_options)
 
 
-def get_transcrypt_hook_code(rel_path: Path) -> str:
-    template = (Path(__file__).parent / "resources" / "transcrypt_hook.js").read_text()
-    return template.replace("<REL_PATH>", str(rel_path.as_posix())).replace(
-        "<MOD>", rel_path.name
-    )
-
-
 def build(
     mod: Mod,
     path: Optional[Path] = None,

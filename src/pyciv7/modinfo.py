@@ -5,6 +5,7 @@ Module containing Pydantic XML models for building a `.modinfo` XML file.
 from io import TextIOWrapper
 from pathlib import Path
 import shutil
+import subprocess
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from types import TracebackType
 from typing import Final, List, Literal, Optional, Type, Union
@@ -15,6 +16,8 @@ from pydantic_core import PydanticCustomError
 from pydantic_xml import BaseXmlModel, attr, element, wrapped
 from rich import print
 from sqlalchemy.sql.elements import CompilerElement
+
+from pyciv7.errors import TranspileError
 
 RECOMMENDED_MAX_ID_LENGTH: Final[int] = 64
 
@@ -307,14 +310,6 @@ StrPath = Union[str, Path]
 """
 
 
-class Item(BaseXmlModel, tag="Item"):
-    path: StrPath
-
-    @field_serializer("path")
-    def to_posix(self, value: StrPath) -> str:
-        return Path(value).as_posix()
-
-
 SQLStatement = CompilerElement
 SQLStatementOrPath = Union[StrPath, SQLStatement]
 
@@ -367,11 +362,35 @@ class DatabaseItemsAction(ItemsAction):
                 self.items[idx] = sql_file
 
 
-class JavaScriptItemsAction(ItemsAction):
+def transpile(items: List[StrPath], transcrypt_dir: StrPath) -> None:
+    transcrypt_dir = Path(transcrypt_dir)
+    for idx, item in enumerate(items[::]):
+        item = Path(item)
+        if item.suffix.lower() == ".py":
+            transpiled_file = transcrypt_dir / item.with_suffix(".js").name
+            if not transpiled_file.exists():
+                # Use transcrypt to transpile Python to JavaScript
+                try:
+                    subprocess.run(
+                        ["transcrypt", "--build", item, "--outdir", transcrypt_dir],
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                except subprocess.CalledProcessError as e:
+                    raise TranspileError(f"Failed to transpile {item.name}") from e
+                # Reassign item to new transpiled JavaScript
+                items[idx] = transpiled_file
+
+
+class ScriptItemsAction(ItemsAction):
 
     @field_validator("items")
     def validate_items(cls, items: List[StrPath]) -> List[StrPath]:
-        return [validate_item_ext(item, ".js") for item in items]
+        return [validate_item_ext(item, ".js", ".py") for item in items]
+
+    def transpile(self, transcrypt_dir: StrPath) -> None:
+        transpile(self.items, transcrypt_dir)
 
 
 class UpdateDatabase(DatabaseItemsAction, tag="UpdateDatabase"):
@@ -415,9 +434,9 @@ class ImportFiles(ItemsAction, tag="ImportFiles"):
     """
 
 
-class UIScripts(JavaScriptItemsAction, tag="UIScripts"):
+class UIScripts(ScriptItemsAction, tag="UIScripts"):
     """
-    Loads the provided `.js` files as new UI scripts.
+    Loads the provided `.js` or `.py` files as new UI scripts.
     """
 
 
@@ -428,6 +447,10 @@ class UIShortcuts(ItemsAction, tag="UIShortcuts"):
     `EnableDebugPanels` can be set to `1` in `AppOptions.txt` to access the panel.
     """
 
+    @field_validator("items")
+    def validate_items(cls, items: List[StrPath]) -> List[StrPath]:
+        return [validate_item_ext(item, ".html") for item in items]
+
 
 class UpdateVisualRemaps(DatabaseItemsAction, tag="UpdateVisualRemaps"):
     """
@@ -437,15 +460,15 @@ class UpdateVisualRemaps(DatabaseItemsAction, tag="UpdateVisualRemaps"):
     """
 
 
-class MapGenScripts(JavaScriptItemsAction, tag="MapGenScripts"):
+class MapGenScripts(ScriptItemsAction, tag="MapGenScripts"):
     """
-    Adds a new `.js` gameplay script that is loaded during map generation, then unloaded after.
+    Adds a new `.js` or `.py` gameplay script that is loaded during map generation, then unloaded after.
     """
 
 
-class ScenarioScripts(JavaScriptItemsAction, tag="ScenarioScripts"):
+class ScenarioScripts(ScriptItemsAction, tag="ScenarioScripts"):
     """
-    Adds a new `.js` gameplay script.
+    Adds a new `.js` or `.py` gameplay script.
     """
 
 
