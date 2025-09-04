@@ -51,7 +51,7 @@ def test_configuration_value_contains_serializes_list_to_commas():
     assert "<Value>a,b,c</Value>" in xml
 
 
-def test_sample_modinfo_to_xml_matches():
+def test_sample_modinfo_to_xml_matches(fxs_new_policies_sample):
     def to_xml_lines(xml_str: str) -> List[str]:
         return [
             line.strip().replace("\\", "/")
@@ -85,29 +85,5 @@ def test_sample_modinfo_to_xml_matches():
         "</Mod>"
     )
     expected = to_xml_lines(expected)
-    mod = Mod(
-        id="fxs-new-policies",
-        version="1",
-        properties=Properties(
-            name="Antiquity Policies",
-            description="Adds new policies to the Antiquity Age",
-            authors="Firaxis",
-            affects_saved_games=True,
-        ),
-        action_criteria=[
-            Criteria(
-                id="antiquity-age-current",
-                conditions=[AgeInUse(age="AGE_ANTIQUITY")],
-            )
-        ],
-        action_groups=[
-            ActionGroup(
-                id="antiquity-game",
-                scope="game",
-                criteria="antiquity-age-current",
-                actions=[UpdateDatabase(items=["data/antiquity-traditions.xml"])],
-            )
-        ],
-    )
-    actual = to_xml_lines(mod.to_xml(encoding="unicode"))  # type: ignore
+    actual = to_xml_lines(fxs_new_policies_sample.to_xml(encoding="unicode", exclude_none=True))  # type: ignore
     assert actual == expected

@@ -2,17 +2,17 @@
 Module pertaining to building Civilization 7 mods and running them in debug mode.
 """
 
-import shutil
 import subprocess
 from contextlib import contextmanager, nullcontext
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Generator, Optional
+import warnings
 
 from rich import print
 from rich.status import Status
 
-from pyciv7.modinfo import DatabaseItemsAction, Mod
+from pyciv7.errors import ModExistsError
+from pyciv7.modinfo import Mod
 from pyciv7.settings import Settings
 
 
@@ -50,7 +50,7 @@ def build(
     path: Optional[Path] = None,
     overwrite: bool = False,
     settings_factory: Callable[[], Settings] = lambda: Settings(),
-):
+) -> Mod:
     """
     Builds a new Civilization 7 mod from Python bindings. The root directory of the mod will be
     named as the `id` of the `Mod`.
@@ -60,36 +60,31 @@ def build(
         path: Directory of where the mod should be stored under. Normally, this is the `Mods` subdirectory under the Civilization 7 settings directory (default.)
         overwrite: `True` if it is okay to overwrite the directory even if it already exists. This is needed for rebuilds.
         settings: Common `Settings` for pyciv7.
+
+    Deprecated:
+        path: This parameter will be removed in v2.0.0. Use `mod.mod_path` instead.
     """
     settings = settings_factory()
-    mod_path = path or settings.civ7_settings_dir / "Mods" / mod.id
+    if path:
+        warnings.warn(
+            'The "path" argument is deprecated. Use "mod.mod_dir" instead.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        mod.mod_dir = path
+    if not mod.mod_dir:
+        mod.mod_dir = settings.civ7_settings_dir / "Mods" / mod.id
+    mod_dir = Path(mod.mod_dir)
+    if (mod_dir / ".modinfo").exists() and not overwrite:
+        raise ModExistsError(
+            f'Mod "{mod.id}" already exists. Use "overwrite=True" to overwrite/rebuild it.'
+        )
     with Status(f'Building .modinfo for "{mod.id}"...'):
-        mod = deepcopy(mod)
-        # Create mod directory
-        try:
-            mod_path.mkdir(parents=True, exist_ok=overwrite)
-        except FileExistsError as e:
-            raise FileExistsError(
-                f'Mod "{mod.id}" already exists. Use "overwrite=True" to overwrite/rebuild it.'
-            ) from e
-        # Create directory for transcrypt
-        transcript_dir = mod_path / "transcrypt"
-        transcript_dir.mkdir(exist_ok=True)
-        # Create a directory for SQL statements
-        sql_statement_dir = mod_path / "sql_statements"
-        sql_statement_dir.mkdir(exist_ok=True)
-        action_groups = mod.action_groups or []
-        for action_group in action_groups:
-            for action in action_group.actions:
-                if isinstance(action, DatabaseItemsAction):
-                    # Save SQL statements to SQL statements directory
-                    action.save_sql_statements(sql_statement_dir)
-                    # Convert all items to relative paths to the mod directory
-                    action.items = [
-                        Path(item).relative_to(mod_path) for item in action.items if Path(item).is_absolute()  # type: ignore
-                    ]
         # Create .modinfo file
-        (mod_path / ".modinfo").write_text(mod.to_xml(encoding="unicode"))  # type: ignore
+        (mod_dir / ".modinfo").write_text(
+            mod.to_xml(encoding="unicode", exclude_none=True)  # type: ignore
+        )
+        return mod
 
 
 def run(mod: Mod, debug: bool = True, **build_kwargs: Any):

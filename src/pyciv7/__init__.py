@@ -69,8 +69,7 @@ Example:
     ```
 """
 
-from pyciv7.hooks import HookedScripts
 from pyciv7.modinfo import Mod
 from pyciv7.runner import build, run
 
-__all__ = ["build", "run", "HookedScripts", "Mod"]
+__all__ = ["build", "run", "Mod"]
