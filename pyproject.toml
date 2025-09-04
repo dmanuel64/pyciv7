@@ -1,6 +1,6 @@
 [project]
 name = "pyciv7"
-version = "1.0.1"
+version = "1.1.0"
 description = "Python bindings for the Sid Meier's Civilization VII Software Development Kit (SDK)"
 keywords = ["civilization", "civ7", "sdk", "python bindings"]
 license = { file = "LICENSE" }
