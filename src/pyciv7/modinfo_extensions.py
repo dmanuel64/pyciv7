@@ -1,3 +1,8 @@
+"""
+Pydantic models and utilities that provide extended `.modinfo` functionality beyond the standard
+Civilization 7 modding guide.
+"""
+
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Literal
