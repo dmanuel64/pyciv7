@@ -50,7 +50,7 @@ def build(
     path: Optional[Path] = None,
     overwrite: bool = False,
     settings_factory: Callable[[], Settings] = lambda: Settings(),
-) -> Mod:
+) -> None:
     """
     Builds a new Civilization 7 mod from Python bindings. The root directory of the mod will be
     named as the `id` of the `Mod`.
@@ -84,7 +84,6 @@ def build(
         (mod_dir / ".modinfo").write_text(
             mod.to_xml(encoding="unicode", exclude_none=True)  # type: ignore
         )
-        return mod
 
 
 def run(mod: Mod, debug: bool = True, **build_kwargs: Any):

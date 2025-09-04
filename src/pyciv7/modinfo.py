@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Any, Dict, Final, List, Literal, Optional, Union
 from uuid import uuid4
 
-from pydantic import Field, field_serializer, field_validator, model_serializer
+from pydantic import (
+    Field,
+    SerializeAsAny,
+    field_serializer,
+    field_validator,
+    model_serializer,
+)
 from pydantic_core import PydanticCustomError
 from pydantic_xml import BaseXmlModel, attr, element, wrapped
 from rich import print
@@ -453,18 +459,20 @@ class ScenarioScripts(ScriptItemsAction, tag="ScenarioScripts"):
     """
 
 
-Action = Union[
-    UpdateDatabase,
-    UpdateText,
-    UpdateIcons,
-    UpdateColors,
-    UpdateArt,
-    ImportFiles,
-    UIScripts,
-    UIShortcuts,
-    UpdateVisualRemaps,
-    MapGenScripts,
-    ScenarioScripts,
+Action = SerializeAsAny[
+    Union[
+        UpdateDatabase,
+        UpdateText,
+        UpdateIcons,
+        UpdateColors,
+        UpdateArt,
+        ImportFiles,
+        UIScripts,
+        UIShortcuts,
+        UpdateVisualRemaps,
+        MapGenScripts,
+        ScenarioScripts,
+    ]
 ]
 
 
