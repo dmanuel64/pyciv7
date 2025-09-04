@@ -57,12 +57,12 @@ def build(
 
     Parameters:
         mod: The `Mod` to build.
-        path: Directory of where the mod should be stored under. Normally, this is the `Mods` subdirectory under the Civilization 7 settings directory (default.)
+        path: *Deprecated*: Directory of where the mod should be stored under. Normally, this is the `Mods` subdirectory under the Civilization 7 settings directory (default.)
         overwrite: `True` if it is okay to overwrite the directory even if it already exists. This is needed for rebuilds.
         settings: Common `Settings` for pyciv7.
 
     Deprecated:
-        path: This parameter will be removed in v2.0.0. Use `mod.mod_path` instead.
+        `path`: This parameter will be removed in v2.0.0. Use `mod.mod_path` instead.
     """
     settings = settings_factory()
     if path:

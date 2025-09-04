@@ -7,7 +7,7 @@
 
 # `pyciv7`
 
-Python bindings for the **Sid Meier’s Civilization VII SDK**.
+Python bindings for the **Sid Meier's Civilization VII SDK**.
 
 Easily build, validate, and package Civilization 7 mods using Python instead of hand-writing `.modinfo` XML.
 
