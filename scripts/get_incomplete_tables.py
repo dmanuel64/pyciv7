@@ -1,13 +1,17 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
+#     "pyciv7",
 #     "pydantic-settings",
 #     "python-dotenv",
 #     "rich",
 #     "sqlmodel",
 # ]
+#
+# [tool.uv.sources]
+# pyciv7 = { path = "../", editable = true }
 # ///
-# TODO: change the above direct dependencies to just pyciv7 once it's published
+
 import os
 from pathlib import Path
 import sqlite3
