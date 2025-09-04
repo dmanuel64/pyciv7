@@ -1,54 +1,33 @@
 import pytest
 from sqlalchemy import text
 from pyciv7 import runner
-from pyciv7.modinfo import (
-    ActionGroup,
-    AgeInUse,
-    Criteria,
-    Mod,
-    Properties,
-    UpdateDatabase,
-)
+from pyciv7.modinfo_extensions import PythonGameScripts
+from pyciv7.settings import Settings
 
 
-@pytest.fixture
-def modinfo_sample() -> Mod:
-    return Mod(
-        id="fxs-new-policies",
-        version="1",
-        properties=Properties(
-            name="Antiquity Policies",
-            description="Adds new policies to the Antiquity Age",
-            authors="Firaxis",
-            affects_saved_games=True,
-        ),
-        action_criteria=[
-            Criteria(
-                id="antiquity-age-current",
-                conditions=[AgeInUse(age="AGE_ANTIQUITY")],
-            )
-        ],
-        action_groups=[
-            ActionGroup(
-                id="antiquity-game",
-                scope="game",
-                criteria="antiquity-age-current",
-                actions=[UpdateDatabase(items=["data/antiquity-traditions.xml"])],
-            )
-        ],
-    )
+def test_build_fxs_new_policies_sample(fxs_new_policies_sample):
+    runner.build(fxs_new_policies_sample)
+    assert (fxs_new_policies_sample.mod_dir / ".modinfo").read_text()
 
 
-def test_build_modinfo_sample(tmp_path, modinfo_sample):
-    path = tmp_path / "fxs-new-policies"
-    runner.build(modinfo_sample, path=path)
-    assert (path / ".modinfo").read_text()
-
-
-def test_build_modinfo_sample_with_sql_expression(tmp_path, modinfo_sample):
-    path = tmp_path / "fxs-new-policies"
+def test_build_fxs_new_policies_sample_with_sql_expression(fxs_new_policies_sample):
     query = text("SELECT * FROM Policies")
-    modinfo_sample.action_groups[0].actions[0].items = [query]
-    runner.build(modinfo_sample, path=path)
-    assert (path / ".modinfo").read_text()
-    assert len(list((path / "sql_statements").glob("*"))) == 1
+    fxs_new_policies_sample.action_groups[0].actions[0].items = [query]
+    runner.build(fxs_new_policies_sample)
+    assert (fxs_new_policies_sample.mod_dir / ".modinfo").read_text()
+    assert len(list((fxs_new_policies_sample.mod_dir / "sql").glob("*"))) == 1
+
+
+# TODO: need to mock transcrypt subprocess.run
+@pytest.mark.skip(reason="Transcrypt needs to be mocked for pipeline")
+def test_build_fxs_new_policies_sample_with_python_script(fxs_new_policies_sample):
+    python_script = fxs_new_policies_sample.mod_dir / "test.py"
+    python_script.write_text("print('Hello, world')")
+    fxs_new_policies_sample.action_groups[0].actions[0] = PythonGameScripts(
+        items=["test.py"]
+    )
+    runner.build(fxs_new_policies_sample)
+    assert (fxs_new_policies_sample.mod_dir / ".modinfo").read_text()
+    assert (
+        fxs_new_policies_sample.mod_dir / Settings().transcrypt_sub_dir / "test.js"
+    ).exists()

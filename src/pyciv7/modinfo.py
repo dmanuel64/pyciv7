@@ -2,24 +2,30 @@
 Module containing Pydantic XML models for building a `.modinfo` XML file.
 """
 
-from io import TextIOWrapper
 from pathlib import Path
-import shutil
-from tempfile import NamedTemporaryFile, TemporaryDirectory
-from types import TracebackType
-from typing import Final, List, Literal, Optional, Type, Union
+from typing import Any, Dict, Final, List, Literal, Optional, Union
 from uuid import uuid4
 
-from pydantic import Field, ValidationError, field_serializer, field_validator
+from pydantic import (
+    Field,
+    SerializeAsAny,
+    field_serializer,
+    field_validator,
+    model_serializer,
+)
 from pydantic_core import PydanticCustomError
 from pydantic_xml import BaseXmlModel, attr, element, wrapped
 from rich import print
 from sqlalchemy.sql.elements import CompilerElement
 
+from pyciv7.errors import ModDirSerializationError
+from pyciv7.settings import Settings
+from pyciv7.utils import StrPath
+
 RECOMMENDED_MAX_ID_LENGTH: Final[int] = 64
 
 
-class Properties(BaseXmlModel, tag="Properties", skip_empty=True):
+class Properties(BaseXmlModel, tag="Properties"):
     model_config = {
         "validate_assignment": True,
         "validate_default": True,
@@ -255,7 +261,7 @@ class CivilizationPlayable(BaseXmlModel, tag="CivilizationPlayable"):
     civilization: str
 
 
-class ModInUse(BaseXmlModel, tag="ModInUse", skip_empty=True):
+class ModInUse(BaseXmlModel, tag="ModInUse"):
     """
     This criterion is met when a mod with an id matching the provided value is active. The
     meaning of 'mod' here is broad. This can be user created mods, or official Firaxis DLC
@@ -301,20 +307,6 @@ class Criteria(BaseXmlModel, tag="Criteria"):
     conditions: List[Condition]
 
 
-StrPath = Union[str, Path]
-"""
-`str` or a `pathlib.Path` instance.
-"""
-
-
-class Item(BaseXmlModel, tag="Item"):
-    path: StrPath
-
-    @field_serializer("path")
-    def to_posix(self, value: StrPath) -> str:
-        return Path(value).as_posix()
-
-
 SQLStatement = CompilerElement
 SQLStatementOrPath = Union[StrPath, SQLStatement]
 
@@ -334,40 +326,54 @@ def validate_item_ext(path: StrPath, *exts: str) -> Path:
 
 class ItemsAction(BaseXmlModel):
     items: List[StrPath] = wrapped("Item")
+    mod_dir: Optional[StrPath] = Field(default=None, exclude=True)
 
     @field_serializer("items")
     def to_posix(self, items: List[StrPath]) -> List[str]:
-        return [Path(item).as_posix() for item in items]
+        if self.mod_dir:
+            mod_dir = Path(self.mod_dir)
+            new_items = []
+            for item in items:
+                item = Path(item)
+                if item.is_absolute():
+                    try:
+                        item = item.relative_to(mod_dir)
+                    except ValueError as e:
+                        raise ModDirSerializationError(
+                            'Each "Item" must be a relative path of the mod directory.'
+                        ) from e
+                new_items.append((mod_dir / item).relative_to(mod_dir).as_posix())
+            return new_items
+        raise ModDirSerializationError('"mod_dir" must be set prior to serialization.')
 
 
 class DatabaseItemsAction(ItemsAction):
     model_config = {"arbitrary_types_allowed": True}
     items: List[Union[StrPath, SQLStatement]] = wrapped("Item")
 
-    @field_serializer("items")
-    def to_posix(self, items: List[Union[StrPath, SQLStatement]]) -> List[str]:
-        if any(isinstance(item, SQLStatement) for item in items):
-            raise PydanticCustomError(
-                "cannot_serialize_sql_statements",
-                "This instance can only be serialized after calling save_sql_statements()",
+    @model_serializer()
+    def save_sql_statements(self) -> Dict[str, Any]:
+        if not self.mod_dir:
+            raise ModDirSerializationError(
+                '"mod_dir" must be set prior to serialization.'
             )
-        return super().to_posix(items)  # type: ignore
-
-    def save_sql_statements(self, path: StrPath) -> None:
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
-        for idx, item in enumerate(self.items[::]):
+        sql_dir = Path(self.mod_dir) / Settings().sql_sub_dir
+        sql_dir.mkdir(exist_ok=True, parents=True)
+        new_items = []
+        for item in self.items:
             if isinstance(item, SQLStatement):
                 # Compile SQL statement and write to SQL file
-                sql_file = (path / str(uuid4())).with_suffix(".sql")
+                sql_file = (sql_dir / str(uuid4())).with_suffix(".sql")
                 sql_file.write_text(
                     str(item.compile(compile_kwargs={"literal_binds": True}))
                 )
-                # Modify items to use the new SQL file instead
-                self.items[idx] = sql_file
+                # Reassign item to new SQL file
+                item = sql_file
+            new_items.append(item)
+        return ItemsAction(items=new_items, mod_dir=self.mod_dir).model_dump()
 
 
-class JavaScriptItemsAction(ItemsAction):
+class ScriptItemsAction(ItemsAction):
 
     @field_validator("items")
     def validate_items(cls, items: List[StrPath]) -> List[StrPath]:
@@ -415,7 +421,7 @@ class ImportFiles(ItemsAction, tag="ImportFiles"):
     """
 
 
-class UIScripts(JavaScriptItemsAction, tag="UIScripts"):
+class UIScripts(ScriptItemsAction, tag="UIScripts"):
     """
     Loads the provided `.js` files as new UI scripts.
     """
@@ -428,6 +434,10 @@ class UIShortcuts(ItemsAction, tag="UIShortcuts"):
     `EnableDebugPanels` can be set to `1` in `AppOptions.txt` to access the panel.
     """
 
+    @field_validator("items")
+    def validate_items(cls, items: List[StrPath]) -> List[StrPath]:
+        return [validate_item_ext(item, ".html") for item in items]
+
 
 class UpdateVisualRemaps(DatabaseItemsAction, tag="UpdateVisualRemaps"):
     """
@@ -437,30 +447,32 @@ class UpdateVisualRemaps(DatabaseItemsAction, tag="UpdateVisualRemaps"):
     """
 
 
-class MapGenScripts(JavaScriptItemsAction, tag="MapGenScripts"):
+class MapGenScripts(ScriptItemsAction, tag="MapGenScripts"):
     """
     Adds a new `.js` gameplay script that is loaded during map generation, then unloaded after.
     """
 
 
-class ScenarioScripts(JavaScriptItemsAction, tag="ScenarioScripts"):
+class ScenarioScripts(ScriptItemsAction, tag="ScenarioScripts"):
     """
     Adds a new `.js` gameplay script.
     """
 
 
-Action = Union[
-    UpdateDatabase,
-    UpdateText,
-    UpdateIcons,
-    UpdateColors,
-    UpdateArt,
-    ImportFiles,
-    UIScripts,
-    UIShortcuts,
-    UpdateVisualRemaps,
-    MapGenScripts,
-    ScenarioScripts,
+Action = SerializeAsAny[
+    Union[
+        UpdateDatabase,
+        UpdateText,
+        UpdateIcons,
+        UpdateColors,
+        UpdateArt,
+        ImportFiles,
+        UIScripts,
+        UIShortcuts,
+        UpdateVisualRemaps,
+        MapGenScripts,
+        ScenarioScripts,
+    ]
 ]
 
 
@@ -489,9 +501,10 @@ class ActionGroup(BaseXmlModel, tag="ActionGroup"):
     """
     The set of actions that will be executed when the criteria is met.
     """
+    load_order: Optional[int] = wrapped("Properties/LoadOrder", default=None, ge=0)
 
 
-class Mod(BaseXmlModel, tag="Mod", skip_empty=True):
+class Mod(BaseXmlModel, tag="Mod"):
     """
     Root element for a `.modinfo` file. A `.modinfo` tells the game what files to load and what
     to do with them. It tells the game how a mod relates to other mods and to DLC. It stores all
@@ -583,3 +596,17 @@ class Mod(BaseXmlModel, tag="Mod", skip_empty=True):
         if not value:
             print('[yellow]It is recommended you define a "Properties" element')
         return value
+
+    @property
+    def mod_dir(self) -> Optional[StrPath]:
+        for action_group in self.action_groups or []:
+            for action in action_group.actions:
+                if isinstance(action, ItemsAction):
+                    return action.mod_dir
+
+    @mod_dir.setter
+    def mod_dir(self, mod_dir: StrPath) -> None:
+        for action_group in self.action_groups or []:
+            for action in action_group.actions:
+                if isinstance(action, ItemsAction):
+                    action.mod_dir = mod_dir

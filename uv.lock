@@ -378,7 +378,7 @@ wheels = [
 
 [[package]]
 name = "pyciv7"
-version = "0.1.0"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic-settings", version = "2.8.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },

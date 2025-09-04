@@ -86,3 +86,5 @@ class Settings(BaseSettings):
     civ7_installation_dir: Path = Field(default_factory=steam_settings_dir)
     civ7_settings_dir: Path = Field(default_factory=default_installation_dir)
     civ7_release_bin: Path = Field(default_factory=steam_release_bin)
+    transcrypt_sub_dir: Path = Field(default=Path("transcrypt"))
+    sql_sub_dir: Path = Field(default=Path("sql"))

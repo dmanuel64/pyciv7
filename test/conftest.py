@@ -1,6 +1,15 @@
 import os
+
 import pytest
 
+from pyciv7.modinfo import (
+    ActionGroup,
+    AgeInUse,
+    Criteria,
+    Mod,
+    Properties,
+    UpdateDatabase,
+)
 from pyciv7.settings import Settings
 
 
@@ -18,3 +27,37 @@ def settings(tmp_path_factory) -> Settings:
     os.environ["CIV7_SETTINGS_DIR"] = str(settings_dir)
     os.environ["CIV7_RELEASE_BIN"] = "baz"
     return Settings()
+
+
+@pytest.fixture
+def fxs_new_policies_sample(tmp_path) -> Mod:
+    mod_dir = tmp_path / "fxs-new-policies"
+    antiquity_traditions = mod_dir / "data" / "antiquity-traditions.xml"
+    antiquity_traditions.parent.mkdir(parents=True)
+    antiquity_traditions.touch()
+    mod = Mod(
+        id="fxs-new-policies",
+        version="1",
+        properties=Properties(
+            name="Antiquity Policies",
+            description="Adds new policies to the Antiquity Age",
+            authors="Firaxis",
+            affects_saved_games=True,
+        ),
+        action_criteria=[
+            Criteria(
+                id="antiquity-age-current",
+                conditions=[AgeInUse(age="AGE_ANTIQUITY")],
+            )
+        ],
+        action_groups=[
+            ActionGroup(
+                id="antiquity-game",
+                scope="game",
+                criteria="antiquity-age-current",
+                actions=[UpdateDatabase(items=["data/antiquity-traditions.xml"])],
+            )
+        ],
+    )
+    mod.mod_dir = mod_dir
+    return mod
