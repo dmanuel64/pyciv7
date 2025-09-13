@@ -2,30 +2,50 @@
 Module containing Pydantic XML models for building a `.modinfo` XML file.
 """
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, Final, List, Literal, Optional, Union
+import shutil
+from typing import Any, Final, List, Literal, Optional, Union
 from uuid import uuid4
+from warnings import deprecated
 
 from pydantic import (
     Field,
     SerializeAsAny,
     field_serializer,
     field_validator,
-    model_serializer,
 )
 from pydantic_core import PydanticCustomError
 from pydantic_xml import BaseXmlModel, attr, element, wrapped
 from rich import print
 from sqlalchemy.sql.elements import CompilerElement
 
-from pyciv7.errors import ModDirSerializationError
+from pyciv7.errors import (
+    ModDirSerializationError,
+    RelativePathRequired,
+    SQLCompatibilityError,
+)
 from pyciv7.settings import Settings
 from pyciv7.utils import StrPath
 
 RECOMMENDED_MAX_ID_LENGTH: Final[int] = 64
+"""
+Recommended maximum length for a `.modinfo` ID as specified in the *Getting Started* guide.
+"""
 
 
-class Properties(BaseXmlModel, tag="Properties"):
+class ModinfoModel(BaseXmlModel):
+
+    def check_modinfo_compatibility(self) -> None:
+        """
+        Checks if the model is compatible with Civilization 7's `.modinfo` files.
+
+        Raises:
+            ModinfoCompatibilityError: If the model is not compatible.
+        """
+
+
+class Properties(ModinfoModel, tag="Properties"):
     model_config = {
         "validate_assignment": True,
         "validate_default": True,
@@ -102,14 +122,11 @@ class Properties(BaseXmlModel, tag="Properties"):
             return int(value)
 
 
-class ChildMod(BaseXmlModel, tag="Mod"):
+class ChildMod(ModinfoModel, tag="Mod"):
     """
     `Mod` element of a `Dependencies` or `References` element.
     """
 
-    model_config = {
-        "title": "Mod",
-    }
     id: str = attr()
     """
     The id of the mod that this mod will reference. This should match the mod id in the `Mod` root
@@ -122,14 +139,14 @@ class ChildMod(BaseXmlModel, tag="Mod"):
     """
 
 
-class AlwaysMet(BaseXmlModel, tag="AlwaysMet"):
+class AlwaysMet(ModinfoModel, tag="AlwaysMet"):
     """
     As the name states, this criterion is always met. `ActionGroups` that you always want active,
     should be assigned a `Criteria` with this criterion.
     """
 
 
-class NeverMet(BaseXmlModel, tag="NeverMet"):
+class NeverMet(ModinfoModel, tag="NeverMet"):
     """
     As the name states, this criterion is never met.
     """
@@ -138,7 +155,7 @@ class NeverMet(BaseXmlModel, tag="NeverMet"):
 Age = Union[Literal["AGE_ANTIQUITY", "AGE_EXPLORATION", "AGE_MODERN"], str]
 
 
-class AgeInUse(BaseXmlModel, tag="AgeInUse"):
+class AgeInUse(ModinfoModel, tag="AgeInUse"):
     """
     This criterion is met when the game age matches the provided age. This should be one of
     `AGE_ANTIQUITY`, `AGE_EXPLORATION`, `AGE_MODERN`. Mods may add new Ages that can be used
@@ -148,7 +165,7 @@ class AgeInUse(BaseXmlModel, tag="AgeInUse"):
     age: Age
 
 
-class AgeWasUsed(BaseXmlModel, tag="AgeWasUsed"):
+class AgeWasUsed(ModinfoModel, tag="AgeWasUsed"):
     """
     This criterion checks whether the provided age was previously played. It does not account for
     the current age. So if the provided value is `AGE_EXPLORATION` and you are currently playing in
@@ -161,7 +178,7 @@ class AgeWasUsed(BaseXmlModel, tag="AgeWasUsed"):
     age: Age
 
 
-class AgeEverInUse(BaseXmlModel, tag="AgeEverInUse"):
+class AgeEverInUse(ModinfoModel, tag="AgeEverInUse"):
     """
     A combination of `AgeInUse` and `AgeWasUsed`. Checks whether the provided Age matches either
     the current Age, or a previously played Age.
@@ -170,7 +187,7 @@ class AgeEverInUse(BaseXmlModel, tag="AgeEverInUse"):
     age: Age
 
 
-class ConfigurationValueMatches(BaseXmlModel, tag="ConfigurationValueMatches"):
+class ConfigurationValueMatches(ModinfoModel, tag="ConfigurationValueMatches"):
     """
     Checks if a game configuration parameter matches the provided values.
     """
@@ -189,7 +206,7 @@ class ConfigurationValueMatches(BaseXmlModel, tag="ConfigurationValueMatches"):
     """
 
 
-class ConfigurationValueContains(BaseXmlModel, tag="ConfigurationValueContains"):
+class ConfigurationValueContains(ModinfoModel, tag="ConfigurationValueContains"):
     """
     Almost identical to `ConfigurationValueMatches`, but it instead takes a list for the `Value`
     field. The criterion is met if the parameter matches any of the provided values
@@ -213,7 +230,7 @@ class ConfigurationValueContains(BaseXmlModel, tag="ConfigurationValueContains")
         return [",".join(value)]
 
 
-class MapInUse(BaseXmlModel, tag="MapInUse"):
+class MapInUse(ModinfoModel, tag="MapInUse"):
     """
     Checks whether the current map type matches the provided value. The value provided should
     match the `File` column of the `Maps` table in the frontend database.
@@ -222,7 +239,7 @@ class MapInUse(BaseXmlModel, tag="MapInUse"):
     path: str
 
 
-class RuleSetInUse(BaseXmlModel, tag="RuleSetInUse"):
+class RuleSetInUse(ModinfoModel, tag="RuleSetInUse"):
     """
     Checks if the given ruleset is in use. By default the only ruleset available is
     `RULESET_STANDARD`, but more may be added by mods or DLC. You can reference the
@@ -232,7 +249,7 @@ class RuleSetInUse(BaseXmlModel, tag="RuleSetInUse"):
     ruleset: Union[Literal["RULESET_STANDARD"], str]
 
 
-class GameModeInUse(BaseXmlModel, tag="GameModeInUse"):
+class GameModeInUse(ModinfoModel, tag="GameModeInUse"):
     """
     Checks whether the game mode matches the provided value.
     """
@@ -240,7 +257,7 @@ class GameModeInUse(BaseXmlModel, tag="GameModeInUse"):
     game_mode: Literal["WorldBuilder", "SinglePlayer", "HotSeat", "MultiPlayer"]
 
 
-class LeaderPlayable(BaseXmlModel, tag="LeaderPlayable"):
+class LeaderPlayable(ModinfoModel, tag="LeaderPlayable"):
     """
     Checks whether provided leader is a valid configuration option (can you set up a game with
     this leader as a player?)
@@ -249,7 +266,7 @@ class LeaderPlayable(BaseXmlModel, tag="LeaderPlayable"):
     leader: str
 
 
-class CivilizationPlayable(BaseXmlModel, tag="CivilizationPlayable"):
+class CivilizationPlayable(ModinfoModel, tag="CivilizationPlayable"):
     """
     Checks whether provided civilization is a valid configuration option (can you set up a game
     with this civilization as a player?).
@@ -261,7 +278,7 @@ class CivilizationPlayable(BaseXmlModel, tag="CivilizationPlayable"):
     civilization: str
 
 
-class ModInUse(BaseXmlModel, tag="ModInUse"):
+class ModInUse(ModinfoModel, tag="ModInUse"):
     """
     This criterion is met when a mod with an id matching the provided value is active. The
     meaning of 'mod' here is broad. This can be user created mods, or official Firaxis DLC
@@ -291,9 +308,12 @@ Condition = Union[
     CivilizationPlayable,
     ModInUse,
 ]
+"""
+A condition that can be used in a `Criteria`.
+"""
 
 
-class Criteria(BaseXmlModel, tag="Criteria"):
+class Criteria(ModinfoModel, tag="Criteria"):
     id: str = attr()
     """
     Each criteria must have an `id` property. The id must be unique on a per mod basis.
@@ -308,10 +328,23 @@ class Criteria(BaseXmlModel, tag="Criteria"):
 
 
 SQLStatement = CompilerElement
+"""
+A SQLModel ORM statement or SQLAlchemy `text` that can be compiled to a SQL string.
+"""
 SQLStatementOrPath = Union[StrPath, SQLStatement]
+"""
+Either a `SQLStatement`, or a path to a `.sql` file.
+"""
 
 
 def validate_item_ext(path: StrPath, *exts: str) -> Path:
+    """
+    Validates that the provided path has one of the provided extensions.
+
+    Parameters:
+        path: The file to validate.
+        exts: The allowed extensions, including the leading dot. Case insensitive.
+    """
     if isinstance(path, str):
         return validate_item_ext(Path(path), *exts)
     else:
@@ -324,40 +357,54 @@ def validate_item_ext(path: StrPath, *exts: str) -> Path:
         return path
 
 
-class ItemsAction(BaseXmlModel):
+class ItemsAction(ModinfoModel):
     items: List[StrPath] = wrapped("Item")
-    mod_dir: Optional[StrPath] = Field(default=None, exclude=True)
+    mod_dir: Optional[StrPath] = Field(default=None, exclude=True, deprecated=True)
+    copy_to_mod_dir: bool = Field(default=True, exclude=True)
 
-    @field_serializer("items")
-    def to_posix(self, items: List[StrPath]) -> List[str]:
-        if self.mod_dir:
-            mod_dir = Path(self.mod_dir)
-            new_items = []
-            for item in items:
-                item = Path(item)
-                if item.is_absolute():
-                    try:
-                        item = item.relative_to(mod_dir)
-                    except ValueError as e:
-                        raise ModDirSerializationError(
-                            'Each "Item" must be a relative path of the mod directory.'
-                        ) from e
-                new_items.append((mod_dir / item).relative_to(mod_dir).as_posix())
-            return new_items
-        raise ModDirSerializationError('"mod_dir" must be set prior to serialization.')
+    def check_modinfo_compatibility(self) -> None:
+        for item in self.items:
+            path = Path(item)
+            if path.is_absolute() or path != path.as_posix():
+                raise RelativePathRequired("Items must be relative POSIX paths")
+
+    def to_relative_posix(
+        self, mod_dir: StrPath, common_items_dir: StrPath
+    ) -> "ItemsAction":
+        # TODO: serializer should not have side-effects (i.e. using shell and creating dirs/files)
+        mod_dir = Path(mod_dir).resolve()
+        common_items_dir = Path(common_items_dir).resolve()
+        new_items = []
+
+        for raw in self.items:
+            src = Path(raw).resolve()
+
+            # Normalize to a path relative to mod_dir
+            rel = src.relative_to(common_items_dir)
+            dest = mod_dir / rel
+
+            if self.copy_to_mod_dir:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, dest)
+            new_items.append(rel.as_posix())
+        return self.model_copy(update={"items": new_items})
 
 
 class DatabaseItemsAction(ItemsAction):
     model_config = {"arbitrary_types_allowed": True}
     items: List[Union[StrPath, SQLStatement]] = wrapped("Item")
 
-    @model_serializer()
-    def save_sql_statements(self) -> Dict[str, Any]:
-        if not self.mod_dir:
-            raise ModDirSerializationError(
-                '"mod_dir" must be set prior to serialization.'
+    def check_modinfo_compatibility(self) -> None:
+        if any(isinstance(item, SQLStatement) for item in self.items):
+            raise SQLCompatibilityError(
+                "Inline SQL cannot be used directly in a .modinfo file. Use to_saved_sql() "
+                "to convert SQL statements to .sql files.",
             )
-        sql_dir = Path(self.mod_dir) / Settings().sql_sub_dir
+        super().check_modinfo_compatibility()
+
+    def to_saved_sql(self, mod_dir: StrPath) -> "DatabaseItemsAction":
+        # TODO: serializer should not have side-effects (i.e. using shell and creating dirs/files)
+        sql_dir = Path(mod_dir) / Settings().sql_sub_dir
         sql_dir.mkdir(exist_ok=True, parents=True)
         new_items = []
         for item in self.items:
@@ -370,7 +417,7 @@ class DatabaseItemsAction(ItemsAction):
                 # Reassign item to new SQL file
                 item = sql_file
             new_items.append(item)
-        return ItemsAction(items=new_items, mod_dir=self.mod_dir).model_dump()
+        return self.model_copy(update={"items": new_items})
 
 
 class ScriptItemsAction(ItemsAction):
@@ -474,9 +521,12 @@ Action = SerializeAsAny[
         ScenarioScripts,
     ]
 ]
+"""
+An action that can be used in an `ActionGroup`.
+"""
 
 
-class ActionGroup(BaseXmlModel, tag="ActionGroup"):
+class ActionGroup(ModinfoModel, tag="ActionGroup"):
     """
     An `ActionGroup` consists of `Action` child elements, which in turn consists of an array of
     different child elements representing different types of actions. Those child elements should
@@ -502,9 +552,12 @@ class ActionGroup(BaseXmlModel, tag="ActionGroup"):
     The set of actions that will be executed when the criteria is met.
     """
     load_order: Optional[int] = wrapped("Properties/LoadOrder", default=None, ge=0)
+    """
+    The order in which this `ActionGroup` will be loaded, relative to other `ActionGroup`s.
+    """
 
 
-class Mod(BaseXmlModel, tag="Mod"):
+class Mod(ModinfoModel, tag="Mod"):
     """
     Root element for a `.modinfo` file. A `.modinfo` tells the game what files to load and what
     to do with them. It tells the game how a mod relates to other mods and to DLC. It stores all
@@ -598,15 +651,44 @@ class Mod(BaseXmlModel, tag="Mod"):
         return value
 
     @property
+    @deprecated(
+        '"mod_dir" is deprecated and unused. Set directly in runner.build(mod_dir=...) instead.'
+    )
     def mod_dir(self) -> Optional[StrPath]:
-        for action_group in self.action_groups or []:
-            for action in action_group.actions:
-                if isinstance(action, ItemsAction):
-                    return action.mod_dir
+        """
+        The mod directory, if it can be inferred from one of the actions.
+        """
+        pass
 
     @mod_dir.setter
+    @deprecated(
+        '"mod_dir" is deprecated and unused. Set directly in runner.build(mod_dir=...) instead.'
+    )
     def mod_dir(self, mod_dir: StrPath) -> None:
-        for action_group in self.action_groups or []:
-            for action in action_group.actions:
-                if isinstance(action, ItemsAction):
-                    action.mod_dir = mod_dir
+        pass
+
+    def check_modinfo_compatibility(self) -> None:
+        visited: set[int] = set()
+
+        def walk(value: Any) -> None:
+            nonlocal visited
+            # ModinfoModel node
+            if isinstance(value, ModinfoModel):
+                oid = id(value)
+                if oid not in visited:
+                    visited.add(oid)
+                    # walk all fields (includes defaults)
+                    for name in value.__class__.model_fields:  # pydantic v2 API
+                        child = getattr(value, name, None)
+                        walk(child)
+                    # collect incompatibles after descending
+                    value.check_modinfo_compatibility()
+            # containers
+            elif isinstance(value, Mapping):
+                for v in value.values():
+                    walk(v)
+            elif isinstance(value, (list, tuple, set, frozenset)):
+                for v in value:
+                    walk(v)
+
+        walk(self)

@@ -6,8 +6,10 @@ keywords = ["civilization", "civ7", "sdk", "python bindings"]
 license = { file = "LICENSE" }
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [{ name = "Dylan Manuel" }]
-requires-python = ">3.8,<3.14"
+requires-python = ">=3.9,<3.14"
 dependencies = [
+    "griffe-pydantic>=1.1.6",
+    "griffe-warnings-deprecated>=0.0.0",
     "pydantic-settings>=2.0.3",
     "pydantic-xml>=2.17.3",
     "rich>=13.8.1",

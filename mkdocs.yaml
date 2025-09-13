@@ -9,6 +9,7 @@ plugins:
     scripts:
     - docs/gen_ref_pages.py
     - docs/gen_about.py
+    - docs/gen_development_guide.py
 - literate-nav:
     nav_file: SUMMARY.md
 - section-index
@@ -16,11 +17,18 @@ plugins:
     handlers:
       python:
         paths: [src]
+        options:
+            extensions:
+              - griffe_warnings_deprecated
+              - griffe_pydantic:
+                  schema: true
 markdown_extensions:
+  - admonition
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
       pygments_lang_class: true
+  - pymdownx.details
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences

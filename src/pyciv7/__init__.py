@@ -1,7 +1,7 @@
 """
 Python bindings for Civilization 7's SDK.
 
-# Example:
+## Example
 
 ```python
 import pyciv7
@@ -35,7 +35,7 @@ mod = Mod(
 pyciv7.build(mod)
 ```
 
-Will produce the same XML as shown in the `Getting Started` guide:
+Will produce a similar XML as shown in the `Getting Started` guide:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -73,3 +73,4 @@ from pyciv7.modinfo import Mod
 from pyciv7.runner import build, run
 
 __all__ = ["build", "run", "Mod"]
+__version__ = "1.1.0"

@@ -37,12 +37,12 @@ This project uses conventional commits to automate versioning and changelogs wit
 
 Please use the following prefixes in your commit messages:
 
-- `feat:` — for new features (triggers a **minor** version bump)
-- `fix:` — for bug fixes (triggers a **patch** bump)
-- `refactor:` — for code improvements (patch bump)
-- `chore:` — for maintenance tasks (no version bump)
-- `docs:` — for documentation updates (no version bump)
-- `test:` — for test-related changes (no version bump)
+- `feat:` - for new features (triggers a **minor** version bump)
+- `fix:` - for bug fixes (triggers a **patch** bump)
+- `refactor:` - for code improvements (patch bump)
+- `chore:` - for maintenance tasks (no version bump)
+- `docs:` - for documentation updates (no version bump)
+- `test:` - for test-related changes (no version bump)
 
 **Examples:**
 
