@@ -85,7 +85,7 @@ def guess_posix_steam_root(is_darwin: bool) -> Optional[Path]:
         - `~/.local/share/Steam`
         - `~/.var/app/com.valvesoftware.Steam/.local/share/Steam` (Flatpak)
 
-    Parameters:
+    Args:
         is_darwin: `True` to search macOS locations, `False` for Linux.
 
     Returns:
@@ -104,6 +104,7 @@ def guess_posix_steam_root(is_darwin: bool) -> Optional[Path]:
         for path in paths:
             if path.exists():
                 return path
+        return None
 
 
 def get_civ7_steam_installation_dir() -> Path:
@@ -163,9 +164,12 @@ class Settings(BaseSettings):
     can be overridden via environment variables or a local `.env` file.
     """
 
-    model_config = SettingsConfigDict(
-        env_file=Path(__file__).parent.parent.parent / ".env", env_file_encoding="utf-8"
-    )
+    model_config = {
+        "env_file": Path(__file__).parent.parent.parent / ".env",
+        "env_file_encoding": "utf-8",
+        "use_attribute_docstrings": True,
+    }
+
     civ7_installation_dir: Path = Field(default_factory=get_civ7_steam_installation_dir)
     """
     The root installation directory of Civilization 7.

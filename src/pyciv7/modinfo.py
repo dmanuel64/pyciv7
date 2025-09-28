@@ -2,10 +2,11 @@
 Module containing Pydantic XML models for building a `.modinfo` XML file.
 """
 
+from ast import TypeVar
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
-import shutil
-from typing import Any, Final, List, Literal, Optional, Union
+from typing import Any, Final, List, Literal, Optional, Type, Union
 from uuid import uuid4
 from warnings import deprecated
 
@@ -21,7 +22,6 @@ from rich import print
 from sqlalchemy.sql.elements import CompilerElement
 
 from pyciv7.errors import (
-    ModDirSerializationError,
     RelativePathRequired,
     SQLCompatibilityError,
 )
@@ -35,6 +35,7 @@ Recommended maximum length for a `.modinfo` ID as specified in the *Getting Star
 
 
 class ModinfoModel(BaseXmlModel):
+    model_config = {"use_attribute_docstrings": True}
 
     def check_modinfo_compatibility(self) -> None:
         """
@@ -120,6 +121,7 @@ class Properties(ModinfoModel, tag="Properties"):
     def serialize_bool_to_int(self, value: Optional[bool]) -> Optional[int]:
         if value is not None:
             return int(value)
+        return None
 
 
 class ChildMod(ModinfoModel, tag="Mod"):
@@ -341,7 +343,7 @@ def validate_item_ext(path: StrPath, *exts: str) -> Path:
     """
     Validates that the provided path has one of the provided extensions.
 
-    Parameters:
+    Args:
         path: The file to validate.
         exts: The allowed extensions, including the leading dot. Case insensitive.
     """
@@ -421,7 +423,6 @@ class DatabaseItemsAction(ItemsAction):
 
 
 class ScriptItemsAction(ItemsAction):
-
     @field_validator("items")
     def validate_items(cls, items: List[StrPath]) -> List[StrPath]:
         return [validate_item_ext(item, ".js") for item in items]

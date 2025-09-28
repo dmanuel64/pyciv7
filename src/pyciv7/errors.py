@@ -58,3 +58,8 @@ class RelativePathRequired(ModinfoCompatibilityError):
     """
     A relative POSIX path is required.
     """
+
+class ExtraNotInstalledError(Exception):
+    """
+    A package extra required for this feature is not installed.
+    """

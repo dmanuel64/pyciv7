@@ -10,22 +10,31 @@ Please feel free to propose a new feature or report a bug.
 
 1. **Fork the repository** and clone your fork:
 
-    ```bash
-    git clone https://github.com/your-username/pyciv7.git
-    cd pyciv7
-    ```
+```bash
+git clone https://github.com/your-username/pyciv7.git
+cd pyciv7
+```
 
 2. **Install all extras and dev dependencies using [`uv`](https://docs.astral.sh/uv/)**:
 
-    ```bash
-    uv sync --all-extras --dev
-    ```
+```bash
+uv sync --all-extras --dev
+```
+> *If you are only modifying docs:*
+> ```bash
+> uv sync --only-group docs
+> ```
+
+> *If you want a full dev environment (test + docs):*
+> ```bash
+> uv sync --all-extras --all-groups
+> ```
 
 3. **Run tests** to verify setup:
 
-    ```bash
-    uv run pytest
-    ```
+```bash
+uv run pytest
+```
 
 ## Code Style
 

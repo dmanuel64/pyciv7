@@ -22,7 +22,6 @@ from pyciv7.utils import StrPath
 
 
 class IncompatibleModinfoModel(ModinfoModel):
-
     def check_modinfo_compatibility(self) -> None:
         raise ModinfoCompatibilityError(
             f'"{self.__class__.__name__}" is not compatible with Civilization 7\'s .modinfo files.'

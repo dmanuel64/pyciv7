@@ -22,7 +22,6 @@ from pyciv7.errors import (
     JavaScriptCompatibilityError,
     ModExistsError,
     ModNotFoundError,
-    ModinfoCompatibilityError,
     RelativePathRequired,
     SQLCompatibilityError,
 )
@@ -70,6 +69,7 @@ def build(
     *,
     path: Optional[Path] = None,
     overwrite: bool = False,
+    link: bool = False,
 ) -> None: ...
 
 
@@ -81,7 +81,9 @@ def build(
     mod: Mod,
     *,
     path: Optional[Path] = None,
+    overwrite: bool = False,
     settings_factory: Optional[Callable[[], Settings]],
+    link: bool = False,
 ) -> None: ...
 
 
@@ -90,11 +92,12 @@ def build(
     path: Optional[Path] = None,
     overwrite: bool = False,
     settings_factory: Optional[Callable[[], Settings]] = None,
+    link: bool = False,
 ) -> None:
     """
     Builds a new Civilization 7 mod from Python bindings.
 
-    Parameters:
+    Args:
         mod: The `Mod` to build.
         path: Directory where the mod should be stored.
             Normally this is the `Mods` subdirectory under the Civilization 7 settings
@@ -148,7 +151,9 @@ def build(
                 except RelativePathRequired:
                     if isinstance(action, ItemsAction):
                         # Convert the path to a relative POSIX path
-                        actions[idx] = action.to_relative_posix(mod_dir, common_items_dir)  # type: ignore
+                        actions[idx] = action.to_relative_posix(
+                            mod_dir, common_items_dir
+                        )  # type: ignore
         mod.check_modinfo_compatibility()
         # Create .modinfo file
         (mod_dir / ".modinfo").write_text(
@@ -160,7 +165,7 @@ def run(mod: Optional[Mod] = None, debug: bool = True, **build_kwargs: Any):
     """
     Builds the `Mod`, and runs the Civilization 7 executable.
 
-    Parameters:
+    Args:
         mod: `Mod` to build.
         debug: Whether to run the game in debug mode.
         build_kwargs: Additional keyword arguments forwarded to `build`.
@@ -198,7 +203,7 @@ def remove(mod: Union[Mod, StrPath]) -> None:
     """
     Removes a built Civilization 7 mod.
 
-    Parameters:
+    Args:
         mod: The `Mod` to remove.
 
     Raises:
