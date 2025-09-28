@@ -8,6 +8,7 @@
 # pyciv7 = { path = "../", editable = true }
 # ///
 
+from pathlib import Path
 from pyciv7 import Mod, run
 from pyciv7.modinfo import ActionGroup, AlwaysMet, Criteria, Properties
 from pyciv7.modinfo_extensions import PythonGameScripts
@@ -27,7 +28,9 @@ mod = Mod(
             id="antiquity-game",
             scope="game",
             criteria="always",
-            actions=[PythonGameScripts(items=["dir_globals.py"])],
+            actions=[
+                PythonGameScripts(items=[Path(__file__).parent / "dir_globals.py"])
+            ],
         )
     ],
 )

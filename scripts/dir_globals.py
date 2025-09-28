@@ -1,3 +1,3 @@
-from pyciv7.bindings import print
+# from pyciv7.bindings import print
 
 print("Hello, world!")

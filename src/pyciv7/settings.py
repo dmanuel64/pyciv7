@@ -11,8 +11,8 @@ via environment variables or a `.env` file.
 import os
 from pathlib import Path
 import platform
-from typing import Optional
-from pydantic import Field
+from typing import Annotated, Optional
+from pydantic import AfterValidator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -155,6 +155,11 @@ def get_civ7_steam_release_bin() -> Path:
         return binaries_dir / system / "Civ7_Win64_Vulkan_FinalRelease"
 
 
+ResolvedPath = Annotated[
+    Path, AfterValidator(lambda p: Path(os.path.expandvars(p)).resolve())
+]
+
+
 class Settings(BaseSettings):
     """
     Common settings for `pyciv7`.
@@ -170,19 +175,21 @@ class Settings(BaseSettings):
         "use_attribute_docstrings": True,
     }
 
-    civ7_installation_dir: Path = Field(default_factory=get_civ7_steam_installation_dir)
+    civ7_installation_dir: ResolvedPath = Field(
+        default_factory=get_civ7_steam_installation_dir
+    )
     """
     The root installation directory of Civilization 7.
 
     **Environment override**: `CIV7_INSTALLATION_DIR`
     """
-    civ7_settings_dir: Path = Field(default_factory=get_default_settings_dir)
+    civ7_settings_dir: ResolvedPath = Field(default_factory=get_default_settings_dir)
     """
     The Civilization 7 app settings directory (i.e., where `AppOptions.txt` lives)
 
     **Environment override**: `CIV7_SETTINGS_DIR`
     """
-    civ7_release_bin: Path = Field(default_factory=get_civ7_steam_release_bin)
+    civ7_release_bin: ResolvedPath = Field(default_factory=get_civ7_steam_release_bin)
     """
     Full path to the Civilization 7 release executable (platform-specific).
 

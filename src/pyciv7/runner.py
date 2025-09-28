@@ -105,6 +105,7 @@ def build(
         overwrite: Whether to overwrite the directory if it already exists.
             This must be `True` for rebuilds
         settings_factory: *Deprecated*: Factory for creating common settings for pyciv7.
+        link: Whether to create a symlink to the mod in the Civ 7 Mods folder.
 
     Raises:
         ModExistsError: If the mod already exists and `overwrite` is `False`.
@@ -116,7 +117,8 @@ def build(
     settings = Settings()
     if settings_factory:
         settings = settings_factory()
-    mod_dir = Path(path or settings.civ7_settings_dir / "Mods" / mod.id)
+    default_mod_dir = settings.civ7_settings_dir / "Mods" / mod.id
+    mod_dir = Path(path or default_mod_dir)
     if (mod_dir / ".modinfo").exists() and not overwrite:
         raise ModExistsError(
             f'Mod "{mod.id}" already exists. Use "overwrite=True" to overwrite/rebuild it.'
@@ -159,6 +161,9 @@ def build(
         (mod_dir / ".modinfo").write_text(
             mod.to_xml(encoding="unicode", exclude_none=True)  # type: ignore
         )
+        if link and mod_dir != default_mod_dir and not default_mod_dir.exists():
+            # Create a symlink in the Mods directory
+            mod_dir.symlink_to(default_mod_dir, target_is_directory=True)
 
 
 def run(mod: Optional[Mod] = None, debug: bool = True, **build_kwargs: Any):

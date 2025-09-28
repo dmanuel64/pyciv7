@@ -97,7 +97,7 @@ class PythonGameScripts(IncompatibleModinfoModel, UIScripts):
                             check=True,
                         )
                     except subprocess.CalledProcessError as e:
-                        raise TranspileError(f"Failed to transpile {item.name}") from e
+                        raise TranspileError(f"Failed to transpile {item.name}: {e.stdout}") from e
                 # Reassign item to new transpiled JavaScript
                 item = transpiled_file
             new_items.append(item)
